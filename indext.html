@@ -1,0 +1,730 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ผู้ตรวจการแห่งน็อตติ้งแฮม - เกมออนไลน์</title>
+<!-- ตั้งค่า PWA สำหรับ Android และเบราว์เซอร์ทั่วไป -->
+  <link rel="manifest" href="./manifest.json">
+  <meta name="theme-color" content="#1d4ed8">
+  <meta name="mobile-web-app-capable" content="yes">
+  <link rel="icon" href="./icon.svg" type="image/svg+xml">
+
+  <!-- ตั้งค่าสำหรับ iPhone / iPad (Safari) -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="น็อตติ้งแฮม">
+  <link rel="apple-touch-icon" href="./icon-192.png">
+  <style>
+    :root {
+      --bg: #f8f9fa;
+      --surface: #ffffff;
+      --text: #1a1a1a;
+      --primary: #1d4ed8;
+      --primary-hover: #1e40af;
+      --legal-bg: #ecfdf5;
+      --legal-border: #059669;
+      --contra-bg: #fef2f2;
+      --contra-border: #dc2626;
+      --border: #d1d5db;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      font-family: system-ui, -apple-system, "Sarabun", sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      margin: 0;
+      padding: 16px;
+    }
+
+    main {
+      max-width: 720px;
+      margin: 0 auto;
+    }
+
+    .top-bar {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .card-panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+
+    h1, h2, h3 {
+      margin-top: 0;
+    }
+
+    .top-bar h1 {
+      margin-bottom: 0;
+    }
+
+    h2:focus {
+      outline: 3px solid var(--primary);
+      outline-offset: 4px;
+    }
+
+    .form-group {
+      margin-bottom: 16px;
+    }
+
+    label {
+      display: block;
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+
+    input[type="text"] {
+      width: 100%;
+      padding: 12px;
+      font-size: 1rem;
+      border: 2px solid #6b7280;
+      border-radius: 6px;
+    }
+
+    button {
+      background-color: var(--primary);
+      color: #ffffff;
+      border: none;
+      border-radius: 6px;
+      padding: 12px 20px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      min-height: 48px;
+      margin-right: 8px;
+      margin-bottom: 8px;
+    }
+
+    button:hover {
+      background-color: var(--primary-hover);
+    }
+
+    button:focus-visible, input:focus-visible {
+      outline: 3px solid #f59e0b;
+      outline-offset: 2px;
+    }
+
+    button.secondary {
+      background-color: #374151;
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    .room-code-box {
+      font-size: 1.5rem;
+      font-weight: 700;
+      letter-spacing: 2px;
+      padding: 10px 14px;
+      background: #eff6ff;
+      border: 2px solid var(--primary);
+      border-radius: 6px;
+      display: inline-block;
+      margin-right: 10px;
+    }
+
+    .hand-list {
+      list-style: none;
+      padding: 0;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 12px;
+    }
+
+    .game-card {
+      padding: 14px;
+      border-radius: 8px;
+      border: 2px solid var(--border);
+    }
+
+    .game-card.legal {
+      background-color: var(--legal-bg);
+      border-color: var(--legal-border);
+    }
+
+    .game-card.contraband {
+      background-color: var(--contra-bg);
+      border-color: var(--contra-border);
+    }
+
+    .error-msg {
+      color: #b91c1c;
+      font-weight: 600;
+      margin-top: 8px;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header class="top-bar">
+<div>
+        <button type="button" id="btn-install-app" class="hidden">
+          ติดตั้งแอปลงเครื่อง
+        </button>
+        <button type="button" id="btn-toggle-sound" class="secondary" aria-pressed="true">
+          เสียงประกอบ: เปิดอยู่
+        </button>
+      </div>
+      <h1>ผู้ตรวจการแห่งน็อตติ้งแฮม</h1>
+      <button type="button" id="btn-toggle-sound" class="secondary" aria-pressed="true">
+        เสียงประกอบ: เปิดอยู่
+      </button>
+    </header>
+
+    <!-- พื้นที่แจ้งเตือนอัตโนมัติสำหรับโปรแกรมอ่านจอภาพ -->
+    <div id="sr-polite" class="sr-only" aria-live="polite" aria-atomic="true"></div>
+    <div id="sr-assertive" class="sr-only" aria-live="assertive" aria-atomic="true"></div>
+
+    <!-- หน้าจอที่ 1: หน้าแรก (สร้างห้อง / เข้าร่วมห้อง) -->
+    <section id="view-home" class="card-panel" aria-labelledby="heading-home">
+      <h2 id="heading-home" tabindex="-1">เข้าสู่ห้องเล่นเกม</h2>
+
+      <div class="form-group">
+        <label for="player-name">ชื่อผู้เล่นของคุณ</label>
+        <input type="text" id="player-name" placeholder="เช่น เอ, บี, นัท" autocomplete="nickname">
+      </div>
+
+      <hr>
+
+      <div class="form-group">
+        <h3>สร้างห้องใหม่</h3>
+        <button type="button" id="btn-create-room">สร้างห้องเกมใหม่</button>
+      </div>
+
+      <hr>
+
+      <div class="form-group">
+        <h3>เข้าร่วมห้องที่มีอยู่แล้ว</h3>
+        <label for="room-code-input">รหัสห้อง 4 หลัก</label>
+        <input type="text" id="room-code-input" placeholder="กรอกรหัสห้อง เช่น A1B2" maxlength="6">
+        <br><br>
+        <button type="button" id="btn-join-room" class="secondary">เข้าร่วมห้อง</button>
+      </div>
+
+      <p id="home-error" class="error-msg" role="alert"></p>
+    </section>
+
+    <!-- หน้าจอที่ 2: ห้องรอผู้เล่น (Lobby) -->
+    <section id="view-lobby" class="card-panel hidden" aria-labelledby="heading-lobby">
+      <h2 id="heading-lobby" tabindex="-1">ห้องรอผู้เล่น</h2>
+
+      <p>
+        รหัสห้องของคุณคือ:
+        <span id="display-room-code" class="room-code-box">----</span>
+        <button type="button" id="btn-copy-code" class="secondary">คัดลอกรหัสห้อง</button>
+      </p>
+
+      <h3>รายชื่อผู้เล่นในห้อง (<span id="player-count">0</span> คน)</h3>
+      <ul id="lobby-player-list"></ul>
+
+      <div id="host-controls" class="hidden">
+        <p>แนะนำให้เล่น 3 ถึง 6 คน (สามารถกดเริ่มด้วย 2 คนเพื่อทดสอบระบบได้)</p>
+        <button type="button" id="btn-start-game">เริ่มเกมและแจกการ์ด</button>
+      </div>
+
+      <p id="waiting-msg" class="hidden">กำลังรอหัวหน้าห้องกดเริ่มเกม...</p>
+      <button type="button" id="btn-leave-room" class="secondary">ออกจากห้อง</button>
+    </section>
+
+    <!-- หน้าจอที่ 3: หน้าจอเล่นเกมเบื้องต้น -->
+    <section id="view-game" class="card-panel hidden" aria-labelledby="heading-game">
+      <h2 id="heading-game" tabindex="-1">กระดานเกม - รอบที่ <span id="game-round">1</span></h2>
+
+      <div class="card-panel">
+        <h3>สถานะปัจจุบัน</h3>
+        <p><strong>ผู้ตรวจการรอบนี้:</strong> <span id="game-sheriff">-</span></p>
+        <p><strong>บทบาทของคุณ:</strong> <span id="my-role">-</span></p>
+        <p><strong>เงินของคุณ:</strong> <span id="my-gold">50</span> เหรียญ</p>
+        <p><strong>การ์ดคงเหลือในกองจั่ว:</strong> <span id="deck-count">0</span> ใบ</p>
+      </div>
+
+      <div class="card-panel">
+        <h3>การ์ดบนมือของคุณ (<span id="hand-count">0</span> ใบ)</h3>
+        <ul id="my-hand-list" class="hand-list"></ul>
+      </div>
+
+      <div class="card-panel">
+        <h3>บันทึกเหตุการณ์ล่าสุด</h3>
+        <ul id="game-log-list"></ul>
+      </div>
+    </section>
+  </main>
+
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+
+  <script>
+    // ==========================================
+    // ==========================================
+    const firebaseConfig = {
+      apiKey: "AIzaSyClWjA4fAhtBLz2NK7TDvUqkCcYio8NH3U",
+
+      authDomain: "sheriff-game.firebaseapp.com",
+
+      databaseURL: "https://sheriff-game-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "ใส่_PROJECT_ID_ของคุณที่นี่",
+      storageBucket: "sheriff-game.firebasestorage.app",
+      messagingSenderId: "820204033106",
+      appId: "1:820204033106:web:855afebfd34521aacdbb8b",
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    // ==========================================
+    // 2. ข้อมูลการ์ดมาตรฐานของเกม
+    // ==========================================
+    const CARD_TYPES = {
+      apple:    { name: "แอปเปิล",   type: "legal",      typeText: "ถูกกฎหมาย", value: 2, penalty: 2, count: 48 },
+      cheese:   { name: "ชีส",       type: "legal",      typeText: "ถูกกฎหมาย", value: 3, penalty: 2, count: 36 },
+      bread:    { name: "ขนมปัง",    type: "legal",      typeText: "ถูกกฎหมาย", value: 3, penalty: 2, count: 36 },
+      chicken:  { name: "ไก่",       type: "legal",      typeText: "ถูกกฎหมาย", value: 4, penalty: 2, count: 24 },
+      pepper:   { name: "พริกไทย",   type: "contraband", typeText: "ของเถื่อน",  value: 6, penalty: 4, count: 22 },
+      mead:     { name: "เหล้าหมัก", type: "contraband", typeText: "ของเถื่อน",  value: 7, penalty: 4, count: 21 },
+      silk:     { name: "ผ้าไหม",    type: "contraband", typeText: "ของเถื่อน",  value: 8, penalty: 4, count: 12 },
+      crossbow: { name: "หน้าไม้",   type: "contraband", typeText: "ของเถื่อน",  value: 9, penalty: 4, count: 5 }
+    };
+
+    // ตัวแปรสถานะของเครื่องผู้เล่นคนนี้
+    let myPlayerId = localStorage.getItem("sheriff_player_id") || ("p_" + Math.random().toString(36).substring(2, 9));
+    localStorage.setItem("sheriff_player_id", myPlayerId);
+
+    let currentRoomCode = null;
+    let roomRef = null;
+    let lastPlayerCount = 0;
+    let lastLogCount = 0;
+
+    // ฟังก์ชันสั่งให้โปรแกรมอ่านจอภาพอ่านข้อความทันที
+    function announce(message, urgent = false) {
+      const el = document.getElementById(urgent ? "sr-assertive" : "sr-polite");
+      el.textContent = "";
+      setTimeout(() => { el.textContent = message; }, 50);
+    }
+
+    // ==========================================
+    // 3. ระบบเสียงประกอบ (Web Audio API)
+    // ==========================================
+    const SoundFX = {
+      enabled: true,
+      ctx: null,
+
+      // ปลดล็อกระบบเสียงของเบราว์เซอร์เมื่อมีการกดปุ่มครั้งแรก
+      init() {
+        if (!this.ctx) {
+          const AudioCtx = window.AudioContext || window.webkitAudioContext;
+          this.ctx = new AudioCtx();
+        }
+        if (this.ctx.state === "suspended") {
+          this.ctx.resume();
+        }
+      },
+
+      // สร้างโทนเสียงพื้นฐาน (ความถี่, ระยะเวลาวินาที, รูปคลื่น, ความดัง, ดีเลย์)
+      playTone(freq, duration, type = "sine", volume = 0.15, delay = 0) {
+        if (!this.enabled) return;
+        this.init();
+        const now = this.ctx.currentTime + delay;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, now);
+
+        gain.gain.setValueAtTime(volume, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+
+        osc.start(now);
+        osc.stop(now + duration);
+      },
+
+      // เสียงเมื่อเข้าห้อง หรือมีผู้เล่นใหม่เข้ามา (กระดิ่ง 2 จังหวะ)
+      join() {
+        this.playTone(587.33, 0.12, "sine", 0.12, 0);    // D5
+        this.playTone(880.00, 0.20, "sine", 0.12, 0.1);  // A5
+      },
+
+      // เสียงเริ่มเกมและแจกการ์ด (ไล่โน้ตขึ้น 3 จังหวะ)
+      startGame() {
+        this.playTone(523.25, 0.12, "triangle", 0.15, 0);    // C5
+        this.playTone(659.25, 0.12, "triangle", 0.15, 0.12); // E5
+        this.playTone(783.99, 0.28, "triangle", 0.15, 0.24); // G5
+      },
+
+      // เสียงเหรียญทอง / ยืนยันคำสั่งสำเร็จ
+      coin() {
+        this.playTone(1318.5, 0.08, "sine", 0.12, 0);     // E6
+        this.playTone(1760.0, 0.22, "sine", 0.12, 0.07);  // A6
+      },
+
+      // เสียงแจ้งเตือนข้อผิดพลาด
+      error() {
+        this.playTone(220.00, 0.18, "sawtooth", 0.08, 0);
+      }
+    };
+
+    // ปุ่มสลับเปิด-ปิดเสียงประกอบ
+    document.getElementById("btn-toggle-sound").addEventListener("click", (e) => {
+      SoundFX.enabled = !SoundFX.enabled;
+      const btn = e.currentTarget;
+      btn.setAttribute("aria-pressed", String(SoundFX.enabled));
+      btn.textContent = SoundFX.enabled ? "เสียงประกอบ: เปิดอยู่" : "เสียงประกอบ: ปิดอยู่";
+      if (SoundFX.enabled) {
+        SoundFX.coin();
+        announce("เปิดเสียงประกอบแล้ว");
+      } else {
+        announce("ปิดเสียงประกอบแล้ว");
+      }
+    });
+
+    // ฟังก์ชันสลับหน้าจอและย้ายโฟกัสไปที่หัวข้อของหน้าใหม่
+    function showView(viewId, headingId) {
+      ["view-home", "view-lobby", "view-game"].forEach(id => {
+        document.getElementById(id).classList.toggle("hidden", id !== viewId);
+      });
+      const heading = document.getElementById(headingId);
+      if (heading) heading.focus();
+    }
+
+    // สร้างรหัสห้องแบบสุ่ม 4 ตัวอักษร
+    function generateRoomCode() {
+      const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+      let code = "";
+      for (let i = 0; i < 4; i++) {
+        code += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
+      return code;
+    }
+
+    // สร้างและสับกองการ์ดทั้งหมด 204 ใบ
+    function createShuffledDeck() {
+      const deck = [];
+      for (const [key, info] of Object.entries(CARD_TYPES)) {
+        for (let i = 0; i < info.count; i++) {
+          deck.push(key);
+        }
+      }
+      for (let i = deck.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [deck[i], deck[j]] = [deck[j], deck[i]];
+      }
+      return deck;
+    }
+
+    // ==========================================
+    // 4. เหตุการณ์ปุ่มกด (สร้างห้อง / เข้าร่วม / เริ่มเกม)
+    // ==========================================
+    document.getElementById("btn-create-room").addEventListener("click", async () => {
+      SoundFX.init();
+      const name = document.getElementById("player-name").value.trim();
+      const errEl = document.getElementById("home-error");
+      errEl.textContent = "";
+
+      if (!name) {
+        SoundFX.error();
+        errEl.textContent = "กรุณากรอกชื่อผู้เล่นก่อนสร้างห้องครับ";
+        document.getElementById("player-name").focus();
+        return;
+      }
+
+      const code = generateRoomCode();
+      const initialData = {
+        status: "waiting",
+        hostId: myPlayerId,
+        round: 1,
+        logs: [`${name} สร้างห้องเกมรหัส ${code} เรียบร้อยแล้ว`],
+        players: {
+          [myPlayerId]: {
+            name: name,
+            gold: 50,
+            joinedAt: Date.now()
+          }
+        }
+      };
+
+      try {
+        await db.ref("rooms/" + code).set(initialData);
+        SoundFX.join();
+        enterRoom(code);
+        announce(`สร้างห้องรหัส ${code} สำเร็จแล้ว คุณเป็นหัวหน้าห้อง`);
+      } catch (err) {
+        SoundFX.error();
+        errEl.textContent = "ไม่สามารถเชื่อมต่อฐานข้อมูลได้ กรุณาตรวจสอบค่า firebaseConfig";
+        console.error(err);
+      }
+    });
+
+    document.getElementById("btn-join-room").addEventListener("click", async () => {
+      SoundFX.init();
+      const name = document.getElementById("player-name").value.trim();
+      const code = document.getElementById("room-code-input").value.trim().toUpperCase();
+      const errEl = document.getElementById("home-error");
+      errEl.textContent = "";
+
+      if (!name) {
+        SoundFX.error();
+        errEl.textContent = "กรุณากรอกชื่อผู้เล่นก่อนเข้าร่วมห้องครับ";
+        document.getElementById("player-name").focus();
+        return;
+      }
+      if (!code) {
+        SoundFX.error();
+        errEl.textContent = "กรุณากรอกรหัสห้องครับ";
+        document.getElementById("room-code-input").focus();
+        return;
+      }
+
+      try {
+        const snapshot = await db.ref("rooms/" + code).once("value");
+        if (!snapshot.exists()) {
+          SoundFX.error();
+          errEl.textContent = `ไม่พบห้องรหัส ${code} กรุณาตรวจสอบรหัสอีกครั้ง`;
+          return;
+        }
+        const roomData = snapshot.val();
+        if (roomData.status !== "waiting") {
+          SoundFX.error();
+          errEl.textContent = "ห้องนี้เริ่มเล่นเกมไปแล้ว ไม่สามารถเข้าร่วมได้";
+          return;
+        }
+
+        await db.ref(`rooms/${code}/players/${myPlayerId}`).set({
+          name: name,
+          gold: 50,
+          joinedAt: Date.now()
+        });
+
+        const logs = roomData.logs || [];
+        logs.push(`${name} เข้าร่วมห้องแล้ว`);
+        await db.ref(`rooms/${code}/logs`).set(logs);
+
+        SoundFX.join();
+        enterRoom(code);
+        announce(`เข้าร่วมห้องรหัส ${code} สำเร็จแล้ว`);
+      } catch (err) {
+        SoundFX.error();
+        errEl.textContent = "เกิดข้อผิดพลาดในการเข้าร่วมห้อง";
+        console.error(err);
+      }
+    });
+
+    document.getElementById("btn-copy-code").addEventListener("click", () => {
+      if (!currentRoomCode) return;
+      navigator.clipboard.writeText(currentRoomCode).then(() => {
+        SoundFX.coin();
+        announce(`คัดลอกรหัสห้อง ${currentRoomCode} ลงคลิปบอร์ดแล้ว`);
+      });
+    });
+
+    document.getElementById("btn-leave-room").addEventListener("click", () => {
+      if (roomRef) roomRef.off();
+      currentRoomCode = null;
+      showView("view-home", "heading-home");
+      announce("ออกจากห้องเรียบร้อยแล้ว");
+    });
+
+    document.getElementById("btn-start-game").addEventListener("click", async () => {
+      if (!currentRoomCode) return;
+      const snapshot = await db.ref("rooms/" + currentRoomCode).once("value");
+      const room = snapshot.val();
+      const playerIds = Object.keys(room.players || {});
+
+      if (playerIds.length < 2) {
+        SoundFX.error();
+        announce("ต้องมีผู้เล่นอย่างน้อย 2 คนขึ้นไปเพื่อเริ่มเกมครับ", true);
+        return;
+      }
+
+      const deck = createShuffledDeck();
+      const updatedPlayers = { ...room.players };
+
+      // แจกการ์ดคนละ 6 ใบ
+      playerIds.forEach(pid => {
+        updatedPlayers[pid].hand = deck.splice(0, 6);
+        updatedPlayers[pid].gold = 50;
+      });
+
+      const firstSheriffId = playerIds[0];
+      const sheriffName = updatedPlayers[firstSheriffId].name;
+      const logs = room.logs || [];
+      logs.push(`เกมเริ่มต้นขึ้นแล้ว! ผู้ตรวจการในรอบที่ 1 คือ ${sheriffName}`);
+
+      await db.ref("rooms/" + currentRoomCode).update({
+        status: "playing",
+        round: 1,
+        sheriffId: firstSheriffId,
+        deck: deck,
+        players: updatedPlayers,
+        logs: logs
+      });
+    });
+
+    // ==========================================
+    // 5. ระบบซิงก์ข้อมูลแบบเรียลไทม์จาก Firebase
+    // ==========================================
+    function enterRoom(code) {
+      currentRoomCode = code;
+      lastPlayerCount = 0;
+      lastLogCount = 0;
+      document.getElementById("display-room-code").textContent = code;
+      showView("view-lobby", "heading-lobby");
+
+      if (roomRef) roomRef.off();
+      roomRef = db.ref("rooms/" + code);
+
+      roomRef.on("value", (snapshot) => {
+        const room = snapshot.val();
+        if (!room) return;
+
+        if (room.status === "waiting") {
+          renderLobby(room);
+        } else if (room.status === "playing") {
+          renderGame(room);
+        }
+      });
+    }
+
+    function renderLobby(room) {
+      const playersObj = room.players || {};
+      const playerList = Object.entries(playersObj);
+      const listEl = document.getElementById("lobby-player-list");
+      listEl.innerHTML = "";
+
+      playerList.forEach(([pid, p]) => {
+        const li = document.createElement("li");
+        const isHostText = (pid === room.hostId) ? " (หัวหน้าห้อง)" : "";
+        const isMeText = (pid === myPlayerId) ? " [คุณ]" : "";
+        li.textContent = `${p.name}${isHostText}${isMeText}`;
+        listEl.appendChild(li);
+      });
+
+      document.getElementById("player-count").textContent = playerList.length;
+
+      // แจ้งเตือนด้วยเสียงและโปรแกรมอ่านจอภาพเมื่อมีเพื่อนเข้ามาเพิ่ม
+      if (lastPlayerCount > 0 && playerList.length > lastPlayerCount) {
+        const newest = playerList[playerList.length - 1][1].name;
+        SoundFX.join();
+        announce(`${newest} เข้าร่วมห้องแล้ว ขณะนี้มีผู้เล่น ${playerList.length} คน`);
+      }
+      lastPlayerCount = playerList.length;
+
+      const isHost = (room.hostId === myPlayerId);
+      document.getElementById("host-controls").classList.toggle("hidden", !isHost);
+      document.getElementById("waiting-msg").classList.toggle("hidden", isHost);
+    }
+
+    function renderGame(room) {
+      const gameView = document.getElementById("view-game");
+      const wasHidden = gameView.classList.contains("hidden");
+      if (wasHidden) {
+        SoundFX.startGame();
+        showView("view-game", "heading-game");
+      }
+
+      const players = room.players || {};
+      const me = players[myPlayerId];
+      const sheriff = players[room.sheriffId];
+
+      document.getElementById("game-round").textContent = room.round || 1;
+      document.getElementById("game-sheriff").textContent = sheriff ? sheriff.name : "-";
+      document.getElementById("my-role").textContent = (room.sheriffId === myPlayerId) ? "ผู้ตรวจการ" : "พ่อค้า";
+      document.getElementById("my-gold").textContent = me ? me.gold : 0;
+      document.getElementById("deck-count").textContent = (room.deck || []).length;
+
+      // แสดงการ์ดบนมือพร้อมรายละเอียดครบถ้วนโดยไม่พึ่งพาสี
+      const hand = (me && me.hand) ? me.hand : [];
+      document.getElementById("hand-count").textContent = hand.length;
+      const handListEl = document.getElementById("my-hand-list");
+      handListEl.innerHTML = "";
+
+      hand.forEach((cardKey, index) => {
+        const card = CARD_TYPES[cardKey];
+        const li = document.createElement("li");
+        li.className = `game-card ${card.type}`;
+        li.innerHTML = `
+          <strong>ใบที่ ${index + 1}: ${card.name}</strong><br>
+          ประเภท: ${card.typeText}<br>
+          มูลค่า: ${card.value} เหรียญ | ค่าปรับ: ${card.penalty} เหรียญ
+        `;
+        handListEl.appendChild(li);
+      });
+
+      // แสดงประวัติเหตุการณ์และอ่านเหตุการณ์ล่าสุดให้โปรแกรมอ่านจอภาพ
+      const logs = room.logs || [];
+      const logListEl = document.getElementById("game-log-list");
+      logListEl.innerHTML = "";
+      logs.slice().reverse().forEach(msg => {
+        const li = document.createElement("li");
+        li.textContent = msg;
+        logListEl.appendChild(li);
+      });
+
+      if (logs.length > lastLogCount) {
+        announce(logs[logs.length - 1]);
+        lastLogCount = logs.length;
+      }
+    }
+  </script>
+// ==========================================
+    // 9. ลงทะเบียน Service Worker และระบบติดตั้ง PWA
+    // ==========================================
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("./sw.js").catch((err) => {
+          console.log("Service Worker registration skipped:", err);
+        });
+      });
+    }
+
+    let deferredInstallPrompt = null;
+    const installBtn = document.getElementById("btn-install-app");
+
+    window.addEventListener("beforeinstallprompt", (e) => {
+      e.preventDefault();
+      deferredInstallPrompt = e;
+      if (installBtn) {
+        installBtn.classList.remove("hidden");
+      }
+    });
+
+    if (installBtn) {
+      installBtn.addEventListener("click", async () => {
+        if (!deferredInstallPrompt) return;
+        deferredInstallPrompt.prompt();
+        const { outcome } = await deferredInstallPrompt.userChoice;
+        if (outcome === "accepted") {
+          announce("กำลังติดตั้งเกมลงหน้าจอโฮมของคุณครับ", true);
+          installBtn.classList.add("hidden");
+        }
+        deferredInstallPrompt = null;
+      });
+    }
+</body>
+</html>
