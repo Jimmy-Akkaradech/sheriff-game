@@ -543,11 +543,15 @@
     const LEGAL_KEYS = ["rice", "mango", "fishsauce", "plara", "mackerel", "durian"];
     const ALL_CARD_KEYS = Object.keys(CARD_TYPES);
     const MAX_PLAYERS = 12;
+    // ถ้าเพื่อนอยู่คนละเครือข่ายแล้วไม่ได้ยินเสียง ให้ใส่ TURN server ที่นี่ เช่น { urls: "turn:host:3478", username: "...", credential: "..." }
+    const TURN_SERVERS = [];
 
+    const urlPid = (new URLSearchParams(location.search).get("pid") || "").replace(/\W/g, "").slice(0, 12);
     let myPlayerId = null;
     try { myPlayerId = localStorage.getItem("sheriff_player_id"); } catch (e) {}
     if (!myPlayerId) myPlayerId = "p_" + Math.random().toString(36).substring(2, 9);
-    try { localStorage.setItem("sheriff_player_id", myPlayerId); } catch (e) {}
+    if (urlPid) myPlayerId = "p_" + urlPid;
+    else try { localStorage.setItem("sheriff_player_id", myPlayerId); } catch (e) {}
 
     let currentRoomCode = null;
     let currentRoomData = null;
@@ -663,7 +667,8 @@
       rtcConfig: {
         iceServers: [
           { urls: "stun:stun.l.google.com:19302" },
-          { urls: "stun:stun1.l.google.com:19302" }
+          { urls: "stun:stun1.l.google.com:19302" },
+          ...TURN_SERVERS
         ]
       },
 
@@ -684,12 +689,21 @@
         this.muted = false;
         this.updateUI();
         SoundFX.micOn();
-        announce("เชื่อมต่อห้องคุยเสียงเรียบร้อยแล้ว กด Alt+M เพื่อเปิดหรือปิดไมค์ได้ทันที", true);
+        announce("เปิดไมค์แล้ว กำลังเชื่อมต่อกับเพื่อนในห้อง กด Alt+M เพื่อเปิดหรือปิดไมค์ได้ทันที", true);
 
         const basePath = `voice/${currentRoomCode}`;
         const myPeerRef = db.ref(`${basePath}/peers/${myPlayerId}`);
         myPeerRef.onDisconnect().remove();
-        await myPeerRef.set({ joinedAt: Date.now() });
+        try {
+          await myPeerRef.set({ joinedAt: Date.now() });
+        } catch (err) {
+          this.fail(err);
+          this.active = false;
+          if (this.localStream) { this.localStream.getTracks().forEach(t => t.stop()); this.localStream = null; }
+          this.updateUI();
+          this.fail(err);
+          return;
+        }
 
         const mySignalRef = db.ref(`${basePath}/signals/${myPlayerId}`);
         mySignalRef.onDisconnect().remove();
@@ -724,6 +738,18 @@
         });
       },
 
+      send(to, payload) {
+        db.ref(`voice/${currentRoomCode}/signals/${to}`).push(payload).catch(err => this.fail(err));
+      },
+
+      fail(err) {
+        console.log("Voice error:", err);
+        const code = (err && err.code) ? err.code : String(err);
+        const msg = `คุยเสียงมีปัญหา: ${code}` + (code === "PERMISSION_DENIED" ? " (ต้องเปิดสิทธิ์ path voice ใน Firebase Rules)" : "");
+        document.getElementById("voice-status-text").textContent = msg;
+        announce(msg, true);
+      },
+
       async createPeerConnection(peerId, isInitiator) {
         if (this.pcs[peerId]) return this.pcs[peerId];
         const pc = new RTCPeerConnection(this.rtcConfig);
@@ -741,7 +767,7 @@
 
         pc.onicecandidate = (e) => {
           if (e.candidate && currentRoomCode) {
-            db.ref(`voice/${currentRoomCode}/signals/${peerId}`).push({
+            this.send(peerId, {
               from: myPlayerId,
               type: "ice",
               candidate: e.candidate.toJSON()
@@ -758,10 +784,13 @@
             audioEl.playsInline = true;
             document.getElementById("voice-audio-container").appendChild(audioEl);
           }
-          audioEl.srcObject = e.streams[0];
+          audioEl.srcObject = e.streams[0] || new MediaStream([e.track]);
+          audioEl.play().catch(() => announce("เบราว์เซอร์บล็อกการเล่นเสียง กรุณากดปุ่มใดก็ได้ในหน้าเว็บหนึ่งครั้ง", true));
         };
 
         pc.onconnectionstatechange = () => {
+          if (pc.connectionState === "connected") announce("เชื่อมต่อเสียงกับเพื่อนสำเร็จ");
+          if (pc.connectionState === "failed") announce("เชื่อมต่อเสียงกับเพื่อนไม่สำเร็จ อาจอยู่คนละเครือข่ายและต้องใช้ TURN server", true);
           if (["failed", "closed"].includes(pc.connectionState)) {
             this.closePeer(peerId);
           }
@@ -770,7 +799,7 @@
         if (isInitiator) {
           const offer = await pc.createOffer();
           await pc.setLocalDescription(offer);
-          db.ref(`voice/${currentRoomCode}/signals/${peerId}`).push({
+          this.send(peerId, {
             from: myPlayerId,
             type: "offer",
             sdp: pc.localDescription.toJSON()
@@ -787,7 +816,7 @@
             await pc.setRemoteDescription(new RTCSessionDescription(msg.sdp));
             const answer = await pc.createAnswer();
             await pc.setLocalDescription(answer);
-            db.ref(`voice/${currentRoomCode}/signals/${fromId}`).push({
+            this.send(fromId, {
               from: myPlayerId,
               type: "answer",
               sdp: pc.localDescription.toJSON()
@@ -1107,6 +1136,7 @@
       if (!currentRoomCode) return;
       const inviteUrl = new URL(window.location.href);
       inviteUrl.searchParams.set("room", currentRoomCode);
+      inviteUrl.searchParams.delete("pid");
       navigator.clipboard.writeText(inviteUrl.toString()).then(() => {
         SoundFX.coin();
         announce(`คัดลอกลิงก์เชิญเข้าห้อง ${currentRoomCode} ลงคลิปบอร์ดแล้ว ส่งให้เพื่อนกดเข้าเล่นได้เลยครับ`);
@@ -1739,11 +1769,11 @@
       });
       html += `</div></fieldset>`;
 
-      html += `<fieldset><legend>2. ประกาศชนิดสินค้า (ต้องเป็นสินค้าถูกกฎหมายเท่านั้น)</legend><div class="radio-group">`;
+      html += `<fieldset><legend>2. เลือกชนิดสินค้าที่จะประกาศเอง (ต้องเป็นสินค้าถูกกฎหมายเท่านั้น)</legend><div class="radio-group">`;
       LEGAL_KEYS.forEach((key, idx) => {
         const c = CARD_TYPES[key];
         html += `<label class="radio-option">
-          <input type="radio" name="declare-good" value="${key}" ${idx === 0 ? "checked" : ""}>
+          <input type="radio" name="declare-good" value="${key}">
           <span>${iconSpan(key)}${c.name}</span>
         </label>`;
       });
@@ -1762,6 +1792,11 @@
         if (checked.length < 1 || checked.length > 5) {
           SoundFX.error();
           errEl.textContent = "กรุณาเลือกการ์ดใส่ถุงอย่างน้อย 1 ใบ และไม่เกิน 5 ใบครับ";
+          return;
+        }
+        if (!declaredGoodEl) {
+          SoundFX.error();
+          errEl.textContent = "กรุณาเลือกชนิดสินค้าที่จะประกาศก่อนปิดถุงครับ";
           return;
         }
         btn.disabled = true;
