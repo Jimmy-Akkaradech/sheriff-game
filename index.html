@@ -4,24 +4,31 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ผู้ตรวจการแห่งน็อตติ้งแฮม - เกมออนไลน์</title>
-<!-- ตั้งค่า PWA สำหรับ Android และเบราว์เซอร์ทั่วไป -->
+
+  <!-- ตั้งค่า PWA สำหรับ Android และเบราว์เซอร์ทั่วไป -->
   <link rel="manifest" href="./manifest.json">
   <meta name="theme-color" content="#1d4ed8">
   <meta name="mobile-web-app-capable" content="yes">
   <link rel="icon" href="./icon.svg" type="image/svg+xml">
 
-  <!-- ตั้งค่าสำหรับ iPhone / iPad (Safari) -->
+  <!-- ตั้งค่า PWA สำหรับ iPhone / iPad (Safari) -->
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="น็อตติ้งแฮม">
   <link rel="apple-touch-icon" href="./icon-192.png">
+
   <style>
     :root {
       --bg: #f8f9fa;
       --surface: #ffffff;
       --text: #1a1a1a;
+      --muted: #4b5563;
       --primary: #1d4ed8;
       --primary-hover: #1e40af;
+      --danger: #b91c1c;
+      --danger-hover: #991b1b;
+      --success: #047857;
+      --success-hover: #065f46;
       --legal-bg: #ecfdf5;
       --legal-border: #059669;
       --contra-bg: #fef2f2;
@@ -41,7 +48,7 @@
     }
 
     main {
-      max-width: 720px;
+      max-width: 820px;
       margin: 0 auto;
     }
 
@@ -54,30 +61,33 @@
       margin-bottom: 16px;
     }
 
+    .top-bar h1 {
+      margin: 0;
+      font-size: 1.6rem;
+    }
+
+    .top-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
     .card-panel {
       background: var(--surface);
       border: 1px solid var(--border);
       border-radius: 10px;
-      padding: 20px;
-      margin-bottom: 20px;
+      padding: 18px;
+      margin-bottom: 18px;
     }
 
-    h1, h2, h3 {
-      margin-top: 0;
-    }
+    h2, h3, h4 { margin-top: 0; }
 
-    .top-bar h1 {
-      margin-bottom: 0;
-    }
-
-    h2:focus {
+    h2:focus, h3:focus {
       outline: 3px solid var(--primary);
       outline-offset: 4px;
     }
 
-    .form-group {
-      margin-bottom: 16px;
-    }
+    .form-group { margin-bottom: 16px; }
 
     label {
       display: block;
@@ -85,9 +95,10 @@
       margin-bottom: 6px;
     }
 
-    input[type="text"] {
+    input[type="text"], input[type="number"] {
       width: 100%;
-      padding: 12px;
+      max-width: 320px;
+      padding: 10px 12px;
       font-size: 1rem;
       border: 2px solid #6b7280;
       border-radius: 6px;
@@ -98,31 +109,30 @@
       color: #ffffff;
       border: none;
       border-radius: 6px;
-      padding: 12px 20px;
+      padding: 10px 18px;
       font-size: 1rem;
       font-weight: 600;
       cursor: pointer;
-      min-height: 48px;
+      min-height: 46px;
       margin-right: 8px;
       margin-bottom: 8px;
     }
 
-    button:hover {
-      background-color: var(--primary-hover);
-    }
+    button:hover { background-color: var(--primary-hover); }
+    button:disabled { background-color: #9ca3af; cursor: not-allowed; }
+    button.secondary { background-color: #374151; }
+    button.secondary:hover { background-color: #1f2937; }
+    button.danger { background-color: var(--danger); }
+    button.danger:hover { background-color: var(--danger-hover); }
+    button.success { background-color: var(--success); }
+    button.success:hover { background-color: var(--success-hover); }
 
     button:focus-visible, input:focus-visible {
       outline: 3px solid #f59e0b;
       outline-offset: 2px;
     }
 
-    button.secondary {
-      background-color: #374151;
-    }
-
-    .hidden {
-      display: none;
-    }
+    .hidden { display: none !important; }
 
     .sr-only {
       position: absolute;
@@ -140,26 +150,37 @@
       font-size: 1.5rem;
       font-weight: 700;
       letter-spacing: 2px;
-      padding: 10px 14px;
+      padding: 8px 14px;
       background: #eff6ff;
       border: 2px solid var(--primary);
       border-radius: 6px;
       display: inline-block;
       margin-right: 10px;
+      margin-bottom: 8px;
     }
 
-    .hand-list {
-      list-style: none;
-      padding: 0;
+    .phase-banner {
+      background: #eff6ff;
+      border-left: 6px solid var(--primary);
+      padding: 12px 16px;
+      border-radius: 6px;
+      margin-bottom: 16px;
+    }
+
+    .hand-grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-      gap: 12px;
+      gap: 10px;
+      list-style: none;
+      padding: 0;
+      margin: 0;
     }
 
     .game-card {
-      padding: 14px;
+      padding: 12px;
       border-radius: 8px;
       border: 2px solid var(--border);
+      display: block;
     }
 
     .game-card.legal {
@@ -172,17 +193,102 @@
       border-color: var(--contra-border);
     }
 
+    .checkbox-card {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      cursor: pointer;
+      font-weight: normal;
+      margin: 0;
+    }
+
+    .checkbox-card input[type="checkbox"] {
+      width: 22px;
+      height: 22px;
+      margin-top: 2px;
+      flex-shrink: 0;
+    }
+
+    fieldset {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px;
+      margin-bottom: 16px;
+    }
+
+    legend {
+      font-weight: 700;
+      padding: 0 8px;
+    }
+
+    .radio-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .radio-option {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 14px;
+      border: 2px solid var(--border);
+      border-radius: 8px;
+      cursor: pointer;
+      background: #fff;
+      font-weight: 600;
+    }
+
+    .radio-option input[type="radio"] {
+      width: 20px;
+      height: 20px;
+    }
+
+    .merchant-inspect-box {
+      border: 2px solid var(--border);
+      border-radius: 8px;
+      padding: 14px;
+      margin-bottom: 14px;
+      background: #fafafa;
+    }
+
+    .merchant-inspect-box.resolved {
+      background: #f3f4f6;
+      border-color: #9ca3af;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+    }
+
+    th, td {
+      border: 1px solid var(--border);
+      padding: 10px;
+      text-align: left;
+    }
+
+    th { background-color: #f3f4f6; }
+
     .error-msg {
-      color: #b91c1c;
+      color: var(--danger);
       font-weight: 600;
       margin-top: 8px;
+    }
+
+    .log-list {
+      max-height: 240px;
+      overflow-y: auto;
+      padding-left: 20px;
     }
   </style>
 </head>
 <body>
   <main>
     <header class="top-bar">
-<div>
+      <h1>ผู้ตรวจการแห่งน็อตติ้งแฮม</h1>
+      <div class="top-actions">
         <button type="button" id="btn-install-app" class="hidden">
           ติดตั้งแอปลงเครื่อง
         </button>
@@ -190,19 +296,20 @@
           เสียงประกอบ: เปิดอยู่
         </button>
       </div>
-      <h1>ผู้ตรวจการแห่งน็อตติ้งแฮม</h1>
-      <button type="button" id="btn-toggle-sound" class="secondary" aria-pressed="true">
-        เสียงประกอบ: เปิดอยู่
-      </button>
     </header>
 
     <!-- พื้นที่แจ้งเตือนอัตโนมัติสำหรับโปรแกรมอ่านจอภาพ -->
     <div id="sr-polite" class="sr-only" aria-live="polite" aria-atomic="true"></div>
     <div id="sr-assertive" class="sr-only" aria-live="assertive" aria-atomic="true"></div>
 
-    <!-- หน้าจอที่ 1: หน้าแรก (สร้างห้อง / เข้าร่วมห้อง) -->
+    <!-- ========================================== -->
+    <!-- หน้าจอที่ 1: หน้าแรก (สร้างห้อง / เข้าร่วม) -->
+    <!-- ========================================== -->
     <section id="view-home" class="card-panel" aria-labelledby="heading-home">
       <h2 id="heading-home" tabindex="-1">เข้าสู่ห้องเล่นเกม</h2>
+
+      <!-- แถบแจ้งเตือนเมื่อเปิดผ่านลิงก์เชิญเพื่อน -->
+      <p id="invite-banner" class="phase-banner hidden" role="status"></p>
 
       <div class="form-group">
         <label for="player-name">ชื่อผู้เล่นของคุณ</label>
@@ -222,108 +329,168 @@
         <h3>เข้าร่วมห้องที่มีอยู่แล้ว</h3>
         <label for="room-code-input">รหัสห้อง 4 หลัก</label>
         <input type="text" id="room-code-input" placeholder="กรอกรหัสห้อง เช่น A1B2" maxlength="6">
-        <br><br>
-        <button type="button" id="btn-join-room" class="secondary">เข้าร่วมห้อง</button>
+        <div style="margin-top: 12px;">
+          <button type="button" id="btn-join-room" class="secondary">เข้าร่วมห้อง</button>
+        </div>
       </div>
 
       <p id="home-error" class="error-msg" role="alert"></p>
     </section>
 
+    <!-- ========================================== -->
     <!-- หน้าจอที่ 2: ห้องรอผู้เล่น (Lobby) -->
+    <!-- ========================================== -->
     <section id="view-lobby" class="card-panel hidden" aria-labelledby="heading-lobby">
       <h2 id="heading-lobby" tabindex="-1">ห้องรอผู้เล่น</h2>
 
       <p>
         รหัสห้องของคุณคือ:
         <span id="display-room-code" class="room-code-box">----</span>
-        <button type="button" id="btn-copy-code" class="secondary">คัดลอกรหัสห้อง</button>
       </p>
+      <div style="margin-bottom: 16px;">
+        <button type="button" id="btn-copy-link">คัดลอกลิงก์เชิญเพื่อน</button>
+        <button type="button" id="btn-copy-code" class="secondary">คัดลอกเฉพาะรหัสห้อง</button>
+      </div>
 
       <h3>รายชื่อผู้เล่นในห้อง (<span id="player-count">0</span> คน)</h3>
       <ul id="lobby-player-list"></ul>
 
       <div id="host-controls" class="hidden">
-        <p>แนะนำให้เล่น 3 ถึง 6 คน (สามารถกดเริ่มด้วย 2 คนเพื่อทดสอบระบบได้)</p>
-        <button type="button" id="btn-start-game">เริ่มเกมและแจกการ์ด</button>
+        <p>แนะนำให้เล่น 3 ถึง 6 คน (ทุกคนจะได้เป็นผู้ตรวจการคนละ 2 รอบ หรือทดสอบด้วย 2 คนได้)</p>
+        <button type="button" id="btn-start-game" class="success">เริ่มเกมและแจกการ์ด</button>
       </div>
 
       <p id="waiting-msg" class="hidden">กำลังรอหัวหน้าห้องกดเริ่มเกม...</p>
       <button type="button" id="btn-leave-room" class="secondary">ออกจากห้อง</button>
     </section>
 
-    <!-- หน้าจอที่ 3: หน้าจอเล่นเกมเบื้องต้น -->
-    <section id="view-game" class="card-panel hidden" aria-labelledby="heading-game">
-      <h2 id="heading-game" tabindex="-1">กระดานเกม - รอบที่ <span id="game-round">1</span></h2>
-
+    <!-- ========================================== -->
+    <!-- หน้าจอที่ 3: กระดานเล่นเกม -->
+    <!-- ========================================== -->
+    <section id="view-game" class="hidden" aria-labelledby="heading-game">
       <div class="card-panel">
-        <h3>สถานะปัจจุบัน</h3>
-        <p><strong>ผู้ตรวจการรอบนี้:</strong> <span id="game-sheriff">-</span></p>
-        <p><strong>บทบาทของคุณ:</strong> <span id="my-role">-</span></p>
-        <p><strong>เงินของคุณ:</strong> <span id="my-gold">50</span> เหรียญ</p>
-        <p><strong>การ์ดคงเหลือในกองจั่ว:</strong> <span id="deck-count">0</span> ใบ</p>
+        <h2 id="heading-game" tabindex="-1">
+          รอบที่ <span id="game-round">1</span> จาก <span id="game-total-rounds">4</span>
+        </h2>
+
+        <div class="phase-banner">
+          <h3 id="phase-title" tabindex="-1" style="margin-bottom: 4px;">เฟสปัจจุบัน</h3>
+          <p id="phase-desc" style="margin: 0;"></p>
+        </div>
+
+        <p>
+          <strong>ผู้ตรวจการรอบนี้:</strong> <span id="game-sheriff">-</span> |
+          <strong>บทบาทของคุณ:</strong> <span id="my-role">-</span> |
+          <strong>เงินของคุณ:</strong> <span id="my-gold">50</span> เหรียญ
+        </p>
+        <p>
+          <strong>กองจั่วกลาง:</strong> <span id="deck-count">0</span> ใบ |
+          <strong>กองทิ้งซ้าย (ใบบนสุด):</strong> <span id="discard-left-top">ว่าง</span> |
+          <strong>กองทิ้งขวา (ใบบนสุด):</strong> <span id="discard-right-top">ว่าง</span>
+        </p>
       </div>
 
-      <div class="card-panel">
-        <h3>การ์ดบนมือของคุณ (<span id="hand-count">0</span> ใบ)</h3>
-        <ul id="my-hand-list" class="hand-list"></ul>
-      </div>
+      <!-- พื้นที่โต้ตอบตามเฟสปัจจุบัน -->
+      <section id="action-panel" class="card-panel" aria-labelledby="action-heading">
+        <h3 id="action-heading" tabindex="-1">คำสั่งและการตัดสินใจ</h3>
+        <div id="action-content"></div>
+        <p id="action-error" class="error-msg" role="alert"></p>
+      </section>
 
-      <div class="card-panel">
-        <h3>บันทึกเหตุการณ์ล่าสุด</h3>
-        <ul id="game-log-list"></ul>
+      <!-- สถานะของพ่อค้าและผู้เล่นทุกคนในรอบนี้ -->
+      <section class="card-panel" aria-labelledby="status-heading">
+        <h3 id="status-heading">สถานะผู้เล่นและแผงสินค้า</h3>
+        <div id="players-status-container"></div>
+      </section>
+
+      <!-- การ์ดบนมือของฉัน -->
+      <section class="card-panel" aria-labelledby="hand-heading">
+        <h3 id="hand-heading">การ์ดบนมือของคุณ (<span id="hand-count">0</span> ใบ)</h3>
+        <ul id="my-hand-list" class="hand-grid"></ul>
+      </section>
+
+      <!-- ประวัติเหตุการณ์ -->
+      <section class="card-panel" aria-labelledby="log-heading">
+        <h3 id="log-heading">บันทึกเหตุการณ์ล่าสุด</h3>
+        <ul id="game-log-list" class="log-list"></ul>
+      </section>
+    </section>
+
+    <!-- ========================================== -->
+    <!-- หน้าจอที่ 4: สรุปคะแนนจบเกม -->
+    <!-- ========================================== -->
+    <section id="view-gameover" class="card-panel hidden" aria-labelledby="heading-gameover">
+      <h2 id="heading-gameover" tabindex="-1">จบเกม! สรุปคะแนนและผู้ชนะ</h2>
+      <p id="winner-banner" style="font-size: 1.2rem; font-weight: 700;"></p>
+      <div id="bonus-summary"></div>
+      <div id="scoreboard-container"></div>
+      <div style="margin-top: 20px;">
+        <button type="button" id="btn-play-again" class="hidden">เริ่มเกมใหม่ในห้องเดิม</button>
+        <button type="button" id="btn-back-home" class="secondary">กลับหน้าแรก</button>
       </div>
     </section>
   </main>
 
+  <!-- โหลด Firebase SDK -->
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 
   <script>
     // ==========================================
+    // 1. ตั้งค่าการเชื่อมต่อ Firebase (ใส่ค่าจริงเรียบร้อยแล้ว)
     // ==========================================
     const firebaseConfig = {
       apiKey: "AIzaSyClWjA4fAhtBLz2NK7TDvUqkCcYio8NH3U",
-
       authDomain: "sheriff-game.firebaseapp.com",
-
       databaseURL: "https://sheriff-game-default-rtdb.asia-southeast1.firebasedatabase.app",
-      projectId: "ใส่_PROJECT_ID_ของคุณที่นี่",
+      projectId: "sheriff-game",
       storageBucket: "sheriff-game.firebasestorage.app",
       messagingSenderId: "820204033106",
       appId: "1:820204033106:web:855afebfd34521aacdbb8b",
+      measurementId: "G-EN57MLJSDL"
     };
 
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
 
     // ==========================================
-    // 2. ข้อมูลการ์ดมาตรฐานของเกม
+    // 2. ข้อมูลการ์ดและโบนัสราชา-ราชินี
     // ==========================================
     const CARD_TYPES = {
-      apple:    { name: "แอปเปิล",   type: "legal",      typeText: "ถูกกฎหมาย", value: 2, penalty: 2, count: 48 },
-      cheese:   { name: "ชีส",       type: "legal",      typeText: "ถูกกฎหมาย", value: 3, penalty: 2, count: 36 },
-      bread:    { name: "ขนมปัง",    type: "legal",      typeText: "ถูกกฎหมาย", value: 3, penalty: 2, count: 36 },
-      chicken:  { name: "ไก่",       type: "legal",      typeText: "ถูกกฎหมาย", value: 4, penalty: 2, count: 24 },
+      apple:    { name: "แอปเปิล",   type: "legal",      typeText: "ถูกกฎหมาย", value: 2, penalty: 2, count: 48, king: 20, queen: 10 },
+      cheese:   { name: "ชีส",       type: "legal",      typeText: "ถูกกฎหมาย", value: 3, penalty: 2, count: 36, king: 15, queen: 10 },
+      bread:    { name: "ขนมปัง",    type: "legal",      typeText: "ถูกกฎหมาย", value: 3, penalty: 2, count: 36, king: 15, queen: 10 },
+      chicken:  { name: "ไก่",       type: "legal",      typeText: "ถูกกฎหมาย", value: 4, penalty: 2, count: 24, king: 10, queen: 5  },
       pepper:   { name: "พริกไทย",   type: "contraband", typeText: "ของเถื่อน",  value: 6, penalty: 4, count: 22 },
       mead:     { name: "เหล้าหมัก", type: "contraband", typeText: "ของเถื่อน",  value: 7, penalty: 4, count: 21 },
       silk:     { name: "ผ้าไหม",    type: "contraband", typeText: "ของเถื่อน",  value: 8, penalty: 4, count: 12 },
-      crossbow: { name: "หน้าไม้",   type: "contraband", typeText: "ของเถื่อน",  value: 9, penalty: 4, count: 5 }
+      crossbow: { name: "หน้าไม้",   type: "contraband", typeText: "ของเถื่อน",  value: 9, penalty: 4, count: 5  }
     };
 
-    // ตัวแปรสถานะของเครื่องผู้เล่นคนนี้
+    const LEGAL_KEYS = ["apple", "cheese", "bread", "chicken"];
+
     let myPlayerId = localStorage.getItem("sheriff_player_id") || ("p_" + Math.random().toString(36).substring(2, 9));
     localStorage.setItem("sheriff_player_id", myPlayerId);
 
     let currentRoomCode = null;
+    let currentRoomData = null;
     let roomRef = null;
     let lastPlayerCount = 0;
     let lastLogCount = 0;
+    let lastActionRenderKey = "";
+    let lastSoundId = 0;
 
-    // ฟังก์ชันสั่งให้โปรแกรมอ่านจอภาพอ่านข้อความทันที
+    let localMarketState = {
+      step: "select",
+      setAsideIndices: [],
+      setAsideCards: [],
+      drawNeeded: 0
+    };
+
     function announce(message, urgent = false) {
       const el = document.getElementById(urgent ? "sr-assertive" : "sr-polite");
       el.textContent = "";
-      setTimeout(() => { el.textContent = message; }, 50);
+      setTimeout(() => { el.textContent = message; }, 60);
     }
 
     // ==========================================
@@ -333,64 +500,75 @@
       enabled: true,
       ctx: null,
 
-      // ปลดล็อกระบบเสียงของเบราว์เซอร์เมื่อมีการกดปุ่มครั้งแรก
       init() {
         if (!this.ctx) {
           const AudioCtx = window.AudioContext || window.webkitAudioContext;
           this.ctx = new AudioCtx();
         }
-        if (this.ctx.state === "suspended") {
-          this.ctx.resume();
-        }
+        if (this.ctx.state === "suspended") this.ctx.resume();
       },
 
-      // สร้างโทนเสียงพื้นฐาน (ความถี่, ระยะเวลาวินาที, รูปคลื่น, ความดัง, ดีเลย์)
-      playTone(freq, duration, type = "sine", volume = 0.15, delay = 0) {
+      playTone(freq, duration, type = "sine", volume = 0.14, delay = 0) {
         if (!this.enabled) return;
         this.init();
         const now = this.ctx.currentTime + delay;
         const osc = this.ctx.createOscillator();
         const gain = this.ctx.createGain();
-
         osc.type = type;
         osc.frequency.setValueAtTime(freq, now);
-
         gain.gain.setValueAtTime(volume, now);
         gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
-
         osc.connect(gain);
         gain.connect(this.ctx.destination);
-
         osc.start(now);
         osc.stop(now + duration);
       },
 
-      // เสียงเมื่อเข้าห้อง หรือมีผู้เล่นใหม่เข้ามา (กระดิ่ง 2 จังหวะ)
       join() {
-        this.playTone(587.33, 0.12, "sine", 0.12, 0);    // D5
-        this.playTone(880.00, 0.20, "sine", 0.12, 0.1);  // A5
+        this.playTone(587.33, 0.12, "sine", 0.12, 0);
+        this.playTone(880.00, 0.20, "sine", 0.12, 0.1);
       },
-
-      // เสียงเริ่มเกมและแจกการ์ด (ไล่โน้ตขึ้น 3 จังหวะ)
       startGame() {
-        this.playTone(523.25, 0.12, "triangle", 0.15, 0);    // C5
-        this.playTone(659.25, 0.12, "triangle", 0.15, 0.12); // E5
-        this.playTone(783.99, 0.28, "triangle", 0.15, 0.24); // G5
+        this.playTone(523.25, 0.12, "triangle", 0.15, 0);
+        this.playTone(659.25, 0.12, "triangle", 0.15, 0.12);
+        this.playTone(783.99, 0.28, "triangle", 0.15, 0.24);
       },
-
-      // เสียงเหรียญทอง / ยืนยันคำสั่งสำเร็จ
+      card() {
+        this.playTone(440.00, 0.06, "triangle", 0.10, 0);
+      },
+      zipBag() {
+        this.playTone(400, 0.07, "sine", 0.11, 0);
+        this.playTone(550, 0.07, "sine", 0.11, 0.06);
+        this.playTone(700, 0.12, "sine", 0.11, 0.12);
+      },
+      inspect() {
+        this.playTone(330, 0.12, "triangle", 0.14, 0);
+        this.playTone(311, 0.12, "triangle", 0.14, 0.13);
+        this.playTone(293, 0.22, "triangle", 0.14, 0.26);
+      },
+      caught() {
+        this.playTone(280, 0.15, "sawtooth", 0.10, 0);
+        this.playTone(185, 0.30, "sawtooth", 0.10, 0.15);
+      },
+      honest() {
+        this.playTone(659.25, 0.10, "sine", 0.12, 0);
+        this.playTone(987.77, 0.22, "sine", 0.12, 0.10);
+      },
       coin() {
-        this.playTone(1318.5, 0.08, "sine", 0.12, 0);     // E6
-        this.playTone(1760.0, 0.22, "sine", 0.12, 0.07);  // A6
+        this.playTone(1318.5, 0.08, "sine", 0.12, 0);
+        this.playTone(1760.0, 0.20, "sine", 0.12, 0.07);
       },
-
-      // เสียงแจ้งเตือนข้อผิดพลาด
+      win() {
+        this.playTone(523.25, 0.12, "triangle", 0.15, 0);
+        this.playTone(659.25, 0.12, "triangle", 0.15, 0.12);
+        this.playTone(783.99, 0.12, "triangle", 0.15, 0.24);
+        this.playTone(1046.5, 0.38, "triangle", 0.16, 0.36);
+      },
       error() {
         this.playTone(220.00, 0.18, "sawtooth", 0.08, 0);
       }
     };
 
-    // ปุ่มสลับเปิด-ปิดเสียงประกอบ
     document.getElementById("btn-toggle-sound").addEventListener("click", (e) => {
       SoundFX.enabled = !SoundFX.enabled;
       const btn = e.currentTarget;
@@ -404,42 +582,59 @@
       }
     });
 
-    // ฟังก์ชันสลับหน้าจอและย้ายโฟกัสไปที่หัวข้อของหน้าใหม่
     function showView(viewId, headingId) {
-      ["view-home", "view-lobby", "view-game"].forEach(id => {
+      ["view-home", "view-lobby", "view-game", "view-gameover"].forEach(id => {
         document.getElementById(id).classList.toggle("hidden", id !== viewId);
       });
       const heading = document.getElementById(headingId);
       if (heading) heading.focus();
     }
 
-    // สร้างรหัสห้องแบบสุ่ม 4 ตัวอักษร
     function generateRoomCode() {
       const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
       let code = "";
-      for (let i = 0; i < 4; i++) {
-        code += chars.charAt(Math.floor(Math.random() * chars.length));
-      }
+      for (let i = 0; i < 4; i++) code += chars.charAt(Math.floor(Math.random() * chars.length));
       return code;
     }
 
-    // สร้างและสับกองการ์ดทั้งหมด 204 ใบ
+    function shuffle(arr) {
+      const a = [...arr];
+      for (let i = a.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [a[i], a[j]] = [a[j], a[i]];
+      }
+      return a;
+    }
+
     function createShuffledDeck() {
       const deck = [];
       for (const [key, info] of Object.entries(CARD_TYPES)) {
-        for (let i = 0; i < info.count; i++) {
-          deck.push(key);
+        for (let i = 0; i < info.count; i++) deck.push(key);
+      }
+      return shuffle(deck);
+    }
+
+    function drawFromDeck(deck, discardLeft, discardRight, count) {
+      const drawn = [];
+      for (let i = 0; i < count; i++) {
+        if (deck.length === 0) {
+          const recycled = shuffle([...discardLeft, ...discardRight]);
+          discardLeft.length = 0;
+          discardRight.length = 0;
+          deck.push(...recycled);
         }
+        if (deck.length > 0) drawn.push(deck.pop());
       }
-      for (let i = deck.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [deck[i], deck[j]] = [deck[j], deck[i]];
-      }
-      return deck;
+      return drawn;
+    }
+
+    function getMerchants(room) {
+      const order = room.playerOrder || [];
+      return order.filter(pid => pid !== room.sheriffId);
     }
 
     // ==========================================
-    // 4. เหตุการณ์ปุ่มกด (สร้างห้อง / เข้าร่วม / เริ่มเกม)
+    // 4. ระบบสร้างห้อง / เข้าร่วม / ลิงก์เชิญเพื่อน / เริ่มเกม
     // ==========================================
     document.getElementById("btn-create-room").addEventListener("click", async () => {
       SoundFX.init();
@@ -461,11 +656,7 @@
         round: 1,
         logs: [`${name} สร้างห้องเกมรหัส ${code} เรียบร้อยแล้ว`],
         players: {
-          [myPlayerId]: {
-            name: name,
-            gold: 50,
-            joinedAt: Date.now()
-          }
+          [myPlayerId]: { name, gold: 50, joinedAt: Date.now() }
         }
       };
 
@@ -476,8 +667,7 @@
         announce(`สร้างห้องรหัส ${code} สำเร็จแล้ว คุณเป็นหัวหน้าห้อง`);
       } catch (err) {
         SoundFX.error();
-        errEl.textContent = "ไม่สามารถเชื่อมต่อฐานข้อมูลได้ กรุณาตรวจสอบค่า firebaseConfig";
-        console.error(err);
+        errEl.textContent = "ไม่สามารถเชื่อมต่อฐานข้อมูลได้ กรุณาตรวจสอบอินเทอร์เน็ตหรือ Security Rules บน Firebase";
       }
     });
 
@@ -509,21 +699,20 @@
           return;
         }
         const roomData = snapshot.val();
-        if (roomData.status !== "waiting") {
+        if (roomData.status !== "waiting" && !(roomData.players && roomData.players[myPlayerId])) {
           SoundFX.error();
           errEl.textContent = "ห้องนี้เริ่มเล่นเกมไปแล้ว ไม่สามารถเข้าร่วมได้";
           return;
         }
 
-        await db.ref(`rooms/${code}/players/${myPlayerId}`).set({
-          name: name,
-          gold: 50,
-          joinedAt: Date.now()
-        });
-
-        const logs = roomData.logs || [];
-        logs.push(`${name} เข้าร่วมห้องแล้ว`);
-        await db.ref(`rooms/${code}/logs`).set(logs);
+        if (!(roomData.players && roomData.players[myPlayerId])) {
+          await db.ref(`rooms/${code}/players/${myPlayerId}`).set({
+            name, gold: 50, joinedAt: Date.now()
+          });
+          const logs = roomData.logs || [];
+          logs.push(`${name} เข้าร่วมห้องแล้ว`);
+          await db.ref(`rooms/${code}/logs`).set(logs);
+        }
 
         SoundFX.join();
         enterRoom(code);
@@ -531,10 +720,24 @@
       } catch (err) {
         SoundFX.error();
         errEl.textContent = "เกิดข้อผิดพลาดในการเข้าร่วมห้อง";
-        console.error(err);
       }
     });
 
+    // ปุ่มคัดลอกลิงก์เชิญเพื่อน (พร้อมพารามิเตอร์ ?room=รหัสห้อง)
+    document.getElementById("btn-copy-link").addEventListener("click", () => {
+      if (!currentRoomCode) return;
+      const inviteUrl = new URL(window.location.href);
+      inviteUrl.searchParams.set("room", currentRoomCode);
+      navigator.clipboard.writeText(inviteUrl.toString()).then(() => {
+        SoundFX.coin();
+        announce(`คัดลอกลิงก์เชิญเข้าห้อง ${currentRoomCode} ลงคลิปบอร์ดแล้ว ส่งให้เพื่อนกดเข้าเล่นได้เลยครับ`);
+      }).catch(() => {
+        SoundFX.error();
+        announce("ไม่สามารถคัดลอกลิงก์อัตโนมัติได้ กรุณาใช้ปุ่มคัดลอกเฉพาะรหัสห้องแทนครับ", true);
+      });
+    });
+
+    // ปุ่มคัดลอกเฉพาะรหัสห้อง 4 หลัก
     document.getElementById("btn-copy-code").addEventListener("click", () => {
       if (!currentRoomCode) return;
       navigator.clipboard.writeText(currentRoomCode).then(() => {
@@ -543,14 +746,27 @@
       });
     });
 
-    document.getElementById("btn-leave-room").addEventListener("click", () => {
+    function leaveRoom() {
       if (roomRef) roomRef.off();
       currentRoomCode = null;
+      currentRoomData = null;
+      lastActionRenderKey = "";
+
+      if (window.location.protocol !== "file:") {
+        const cleanUrl = new URL(window.location.href);
+        cleanUrl.searchParams.delete("room");
+        window.history.replaceState({}, "", cleanUrl.toString());
+      }
+      document.getElementById("invite-banner").classList.add("hidden");
+
       showView("view-home", "heading-home");
       announce("ออกจากห้องเรียบร้อยแล้ว");
-    });
+    }
 
-    document.getElementById("btn-start-game").addEventListener("click", async () => {
+    document.getElementById("btn-leave-room").addEventListener("click", leaveRoom);
+    document.getElementById("btn-back-home").addEventListener("click", leaveRoom);
+
+    async function startNewGameInRoom() {
       if (!currentRoomCode) return;
       const snapshot = await db.ref("rooms/" + currentRoomCode).once("value");
       const room = snapshot.val();
@@ -563,36 +779,55 @@
       }
 
       const deck = createShuffledDeck();
-      const updatedPlayers = { ...room.players };
+      const discardLeft = deck.splice(0, 5);
+      const discardRight = deck.splice(0, 5);
+      const updatedPlayers = {};
 
-      // แจกการ์ดคนละ 6 ใบ
       playerIds.forEach(pid => {
-        updatedPlayers[pid].hand = deck.splice(0, 6);
-        updatedPlayers[pid].gold = 50;
+        updatedPlayers[pid] = {
+          name: room.players[pid].name,
+          gold: 50,
+          joinedAt: room.players[pid].joinedAt || Date.now(),
+          hand: deck.splice(0, 6),
+          stallLegal: [],
+          stallContraband: [],
+          bag: { submitted: false, resolved: false, actualCards: [], declaredGood: "", declaredCount: 0, bribeOffer: 0, resultText: "" }
+        };
       });
 
       const firstSheriffId = playerIds[0];
-      const sheriffName = updatedPlayers[firstSheriffId].name;
-      const logs = room.logs || [];
-      logs.push(`เกมเริ่มต้นขึ้นแล้ว! ผู้ตรวจการในรอบที่ 1 คือ ${sheriffName}`);
+      const totalRounds = playerIds.length * 2;
+      const logs = [`เกมเริ่มต้นแล้ว! เล่นทั้งหมด ${totalRounds} รอบ ผู้ตรวจการรอบที่ 1 คือ ${updatedPlayers[firstSheriffId].name} เริ่มเฟสตลาด`];
 
       await db.ref("rooms/" + currentRoomCode).update({
         status: "playing",
         round: 1,
+        totalRounds: totalRounds,
+        phase: "market",
+        playerOrder: playerIds,
+        sheriffIndex: 0,
         sheriffId: firstSheriffId,
+        marketTurnIndex: 0,
         deck: deck,
+        discardLeft: discardLeft,
+        discardRight: discardRight,
         players: updatedPlayers,
+        lastSoundEvent: { type: "startGame", id: Date.now() },
         logs: logs
       });
-    });
+    }
+
+    document.getElementById("btn-start-game").addEventListener("click", startNewGameInRoom);
+    document.getElementById("btn-play-again").addEventListener("click", startNewGameInRoom);
 
     // ==========================================
-    // 5. ระบบซิงก์ข้อมูลแบบเรียลไทม์จาก Firebase
+    // 5. การรับข้อมูลเรียลไทม์จาก Firebase
     // ==========================================
     function enterRoom(code) {
       currentRoomCode = code;
       lastPlayerCount = 0;
       lastLogCount = 0;
+      lastActionRenderKey = "";
       document.getElementById("display-room-code").textContent = code;
       showView("view-lobby", "heading-lobby");
 
@@ -602,11 +837,22 @@
       roomRef.on("value", (snapshot) => {
         const room = snapshot.val();
         if (!room) return;
+        currentRoomData = room;
+
+        if (room.lastSoundEvent && room.lastSoundEvent.id !== lastSoundId) {
+          lastSoundId = room.lastSoundEvent.id;
+          const soundType = room.lastSoundEvent.type;
+          if (typeof SoundFX[soundType] === "function") {
+            SoundFX[soundType]();
+          }
+        }
 
         if (room.status === "waiting") {
           renderLobby(room);
         } else if (room.status === "playing") {
           renderGame(room);
+        } else if (room.status === "finished") {
+          renderGameOver(room);
         }
       });
     }
@@ -627,7 +873,6 @@
 
       document.getElementById("player-count").textContent = playerList.length;
 
-      // แจ้งเตือนด้วยเสียงและโปรแกรมอ่านจอภาพเมื่อมีเพื่อนเข้ามาเพิ่ม
       if (lastPlayerCount > 0 && playerList.length > lastPlayerCount) {
         const newest = playerList[playerList.length - 1][1].name;
         SoundFX.join();
@@ -640,25 +885,129 @@
       document.getElementById("waiting-msg").classList.toggle("hidden", isHost);
     }
 
+    // ==========================================
+    // 6. แสดงผลกระดานเกมและจัดการแต่ละเฟส
+    // ==========================================
     function renderGame(room) {
       const gameView = document.getElementById("view-game");
-      const wasHidden = gameView.classList.contains("hidden");
-      if (wasHidden) {
-        SoundFX.startGame();
+      if (gameView.classList.contains("hidden")) {
         showView("view-game", "heading-game");
       }
 
       const players = room.players || {};
       const me = players[myPlayerId];
       const sheriff = players[room.sheriffId];
+      const isSheriff = (room.sheriffId === myPlayerId);
 
       document.getElementById("game-round").textContent = room.round || 1;
+      document.getElementById("game-total-rounds").textContent = room.totalRounds || 4;
       document.getElementById("game-sheriff").textContent = sheriff ? sheriff.name : "-";
-      document.getElementById("my-role").textContent = (room.sheriffId === myPlayerId) ? "ผู้ตรวจการ" : "พ่อค้า";
+      document.getElementById("my-role").textContent = isSheriff ? "ผู้ตรวจการ" : "พ่อค้า";
       document.getElementById("my-gold").textContent = me ? me.gold : 0;
       document.getElementById("deck-count").textContent = (room.deck || []).length;
 
-      // แสดงการ์ดบนมือพร้อมรายละเอียดครบถ้วนโดยไม่พึ่งพาสี
+      const dLeft = room.discardLeft || [];
+      const dRight = room.discardRight || [];
+      document.getElementById("discard-left-top").textContent = dLeft.length > 0 ? `${CARD_TYPES[dLeft[dLeft.length - 1]].name} (เหลือ ${dLeft.length} ใบ)` : "ว่าง";
+      document.getElementById("discard-right-top").textContent = dRight.length > 0 ? `${CARD_TYPES[dRight[dRight.length - 1]].name} (เหลือ ${dRight.length} ใบ)` : "ว่าง";
+
+      const phaseTitleEl = document.getElementById("phase-title");
+      const phaseDescEl = document.getElementById("phase-desc");
+      if (room.phase === "market") {
+        const merchants = getMerchants(room);
+        const activeId = merchants[room.marketTurnIndex || 0];
+        const activeName = players[activeId] ? players[activeId].name : "-";
+        phaseTitleEl.textContent = "เฟสที่ 1: ตลาดแลกเปลี่ยนการ์ด";
+        phaseDescEl.textContent = `ขณะนี้เป็นตาของพ่อค้า ${activeName} ในการเปลี่ยนการ์ดบนมือ`;
+      } else if (room.phase === "load_declare") {
+        phaseTitleEl.textContent = "เฟสที่ 2 และ 3: ใส่สินค้าลงถุงและประกาศสินค้า";
+        phaseDescEl.textContent = "พ่อค้าทุกคนเลือกสินค้า 1 ถึง 5 ใบใส่ถุง และประกาศชนิดสินค้าถูกกฎหมายพร้อมกัน";
+      } else if (room.phase === "inspection") {
+        phaseTitleEl.textContent = "เฟสที่ 4: ตรวจค้นและต่อรองสินบน";
+        phaseDescEl.textContent = "พ่อค้าสามารถเสนอสินบนได้ ส่วนผู้ตรวจการตัดสินใจว่าจะปล่อยผ่านหรือเปิดถุงตรวจค้น";
+      }
+
+      renderPlayersStatus(room);
+      renderMyHand(me);
+      renderActionPanel(room);
+
+      const logs = room.logs || [];
+      const logListEl = document.getElementById("game-log-list");
+      logListEl.innerHTML = "";
+      logs.slice().reverse().forEach(msg => {
+        const li = document.createElement("li");
+        li.textContent = msg;
+        logListEl.appendChild(li);
+      });
+
+      if (logs.length > lastLogCount) {
+        announce(logs[logs.length - 1]);
+        lastLogCount = logs.length;
+      }
+    }
+
+    function renderPlayersStatus(room) {
+      const container = document.getElementById("players-status-container");
+      const order = room.playerOrder || [];
+      let html = `<table>
+        <thead>
+          <tr>
+            <th scope="col">ผู้เล่น</th>
+            <th scope="col">บทบาท</th>
+            <th scope="col">เงิน</th>
+            <th scope="col">สินค้าบนแผง</th>
+            <th scope="col">สถานะรอบนี้</th>
+          </tr>
+        </thead>
+        <tbody>`;
+
+      order.forEach(pid => {
+        const p = room.players[pid];
+        if (!p) return;
+        const isSheriff = (pid === room.sheriffId);
+        const legalList = p.stallLegal || [];
+        const contraCount = (p.stallContraband || []).length;
+
+        const counts = {};
+        legalList.forEach(k => counts[k] = (counts[k] || 0) + 1);
+        const legalText = Object.entries(counts).map(([k, c]) => `${CARD_TYPES[k].name} ${c}`).join(", ") || "ยังไม่มี";
+        const stallSummary = `${legalText} | ของเถื่อนซ่อนอยู่ ${contraCount} ใบ`;
+
+        let roundStatus = "-";
+        if (isSheriff) {
+          roundStatus = "ผู้ตรวจการ";
+        } else if (room.phase === "market") {
+          const merchants = getMerchants(room);
+          const mIdx = merchants.indexOf(pid);
+          const curIdx = room.marketTurnIndex || 0;
+          if (mIdx < curIdx) roundStatus = "เสร็จสิ้นเฟสตลาดแล้ว";
+          else if (mIdx === curIdx) roundStatus = "กำลังเลือกการ์ดในตลาด";
+          else roundStatus = "รอคิวตลาด";
+        } else if (room.phase === "load_declare") {
+          roundStatus = (p.bag && p.bag.submitted) ? "ส่งถุงแล้ว" : "กำลังจัดของลงถุง";
+        } else if (room.phase === "inspection") {
+          if (p.bag && p.bag.resolved) {
+            roundStatus = p.bag.resultText || "ตรวจเสร็จแล้ว";
+          } else if (p.bag) {
+            const gName = CARD_TYPES[p.bag.declaredGood]?.name || "-";
+            roundStatus = `ประกาศ ${gName} ${p.bag.declaredCount} ใบ (สินบน ${p.bag.bribeOffer || 0} เหรียญ)`;
+          }
+        }
+
+        html += `<tr>
+          <td>${p.name}${pid === myPlayerId ? " (คุณ)" : ""}</td>
+          <td>${isSheriff ? "ผู้ตรวจการ" : "พ่อค้า"}</td>
+          <td>${p.gold} เหรียญ</td>
+          <td>${stallSummary}</td>
+          <td>${roundStatus}</td>
+        </tr>`;
+      });
+
+      html += `</tbody></table>`;
+      container.innerHTML = html;
+    }
+
+    function renderMyHand(me) {
       const hand = (me && me.hand) ? me.hand : [];
       document.getElementById("hand-count").textContent = hand.length;
       const handListEl = document.getElementById("my-hand-list");
@@ -675,25 +1024,679 @@
         `;
         handListEl.appendChild(li);
       });
+    }
 
-      // แสดงประวัติเหตุการณ์และอ่านเหตุการณ์ล่าสุดให้โปรแกรมอ่านจอภาพ
-      const logs = room.logs || [];
-      const logListEl = document.getElementById("game-log-list");
-      logListEl.innerHTML = "";
-      logs.slice().reverse().forEach(msg => {
-        const li = document.createElement("li");
-        li.textContent = msg;
-        logListEl.appendChild(li);
-      });
+    // ==========================================
+    // 7. โซนคำสั่งแยกตามเฟส (รักษาโฟกัสไม่ให้หลุด)
+    // ==========================================
+    function renderActionPanel(room) {
+      const players = room.players || {};
+      const me = players[myPlayerId];
+      const isSheriff = (room.sheriffId === myPlayerId);
+      const merchants = getMerchants(room);
 
-      if (logs.length > lastLogCount) {
-        announce(logs[logs.length - 1]);
-        lastLogCount = logs.length;
+      let renderKey = `${room.round}_${room.phase}_${isSheriff}`;
+
+      if (room.phase === "market") {
+        const activeId = merchants[room.marketTurnIndex || 0];
+        const isMyTurn = (activeId === myPlayerId);
+        renderKey += `_${room.marketTurnIndex}_${isMyTurn}_${localMarketState.step}_${localMarketState.drawNeeded}`;
+      } else if (room.phase === "load_declare") {
+        const mySubmitted = !!(me && me.bag && me.bag.submitted);
+        const submittedCount = merchants.filter(pid => players[pid]?.bag?.submitted).length;
+        renderKey += `_${mySubmitted}`;
+        if (isSheriff || mySubmitted) renderKey += `_${submittedCount}`;
+      } else if (room.phase === "inspection") {
+        if (isSheriff) {
+          const inspectSig = merchants.map(pid => {
+            const b = players[pid]?.bag || {};
+            return `${pid}:${b.bribeOffer || 0}:${b.resolved}`;
+          }).join("|");
+          renderKey += `_sheriff_${inspectSig}`;
+        } else {
+          const myResolved = !!(me && me.bag && me.bag.resolved);
+          const allResolved = merchants.every(pid => players[pid]?.bag?.resolved);
+          renderKey += `_merchant_${myResolved}_${allResolved}`;
+        }
+      }
+
+      if (renderKey === lastActionRenderKey) return;
+      const isPhaseOrTurnChanged = lastActionRenderKey.split("_")[1] !== room.phase || lastActionRenderKey.split("_")[0] !== String(room.round);
+      lastActionRenderKey = renderKey;
+
+      const contentEl = document.getElementById("action-content");
+      document.getElementById("action-error").textContent = "";
+
+      if (room.phase === "market") {
+        renderMarketAction(room, contentEl);
+      } else if (room.phase === "load_declare") {
+        renderLoadDeclareAction(room, contentEl);
+      } else if (room.phase === "inspection") {
+        renderInspectionAction(room, contentEl);
+      }
+
+      if (isPhaseOrTurnChanged) {
+        document.getElementById("phase-title").focus();
       }
     }
-  </script>
-// ==========================================
-    // 9. ลงทะเบียน Service Worker และระบบติดตั้ง PWA
+
+    // ---------- เฟสที่ 1: ตลาด ----------
+    function renderMarketAction(room, container) {
+      const merchants = getMerchants(room);
+      const activeId = merchants[room.marketTurnIndex || 0];
+      const activeName = room.players[activeId]?.name || "-";
+
+      if (activeId !== myPlayerId) {
+        localMarketState = { step: "select", setAsideIndices: [], setAsideCards: [], drawNeeded: 0 };
+        container.innerHTML = `<p>กำลังรอพ่อค้า <strong>${activeName}</strong> เปลี่ยนการ์ดในเฟสตลาด...</p>`;
+        return;
+      }
+
+      const me = room.players[myPlayerId];
+      const hand = me.hand || [];
+
+      if (localMarketState.step === "select") {
+        let html = `<p><strong>ถึงตาคุณในเฟสตลาด!</strong> เลือกการ์ดที่ต้องการทิ้ง 0 ถึง 5 ใบ (หรือกดข้ามหากพอใจการ์ดบนมือแล้ว)</p>`;
+        html += `<fieldset><legend>เลือกการ์ดที่ต้องการเปลี่ยน</legend><div class="hand-grid">`;
+        hand.forEach((cardKey, idx) => {
+          const c = CARD_TYPES[cardKey];
+          html += `<label class="game-card ${c.type} checkbox-card">
+            <input type="checkbox" name="market-discard" value="${idx}">
+            <span><strong>${c.name}</strong> (${c.typeText})<br>มูลค่า ${c.value} | ปรับ ${c.penalty}</span>
+          </label>`;
+        });
+        html += `</div></fieldset>`;
+        html += `<button type="button" id="btn-market-confirm-discard">ยืนยันการทิ้งและไปจั่วการ์ดใหม่</button>`;
+        html += `<button type="button" id="btn-market-skip" class="secondary">ไม่เปลี่ยนการ์ด (ผ่านตา)</button>`;
+        container.innerHTML = html;
+
+        document.getElementById("btn-market-skip").addEventListener("click", () => finishMarketTurn());
+        document.getElementById("btn-market-confirm-discard").addEventListener("click", () => {
+          const checked = Array.from(document.querySelectorAll('input[name="market-discard"]:checked')).map(el => Number(el.value));
+          if (checked.length === 0) {
+            finishMarketTurn();
+            return;
+          }
+          if (checked.length > 5) {
+            SoundFX.error();
+            document.getElementById("action-error").textContent = "สามารถเลือกทิ้งได้สูงสุด 5 ใบครับ";
+            return;
+          }
+          SoundFX.card();
+          localMarketState.setAsideIndices = checked;
+          localMarketState.setAsideCards = checked.map(i => hand[i]);
+          localMarketState.drawNeeded = checked.length;
+          localMarketState.step = "draw";
+          lastActionRenderKey = "";
+          renderActionPanel(currentRoomData);
+          announce(`ตั้งพักการ์ดไว้ ${checked.length} ใบ กรุณาเลือกจั่วการ์ดใหม่ให้ครบ ${checked.length} ใบ`, true);
+        });
+
+      } else if (localMarketState.step === "draw") {
+        const dLeft = room.discardLeft || [];
+        const dRight = room.discardRight || [];
+        const leftTop = dLeft.length > 0 ? CARD_TYPES[dLeft[dLeft.length - 1]] : null;
+        const rightTop = dRight.length > 0 ? CARD_TYPES[dRight[dRight.length - 1]] : null;
+
+        let html = `<p><strong>ขั้นตอนจั่วการ์ดใหม่:</strong> ต้องจั่วเพิ่มอีก <strong>${localMarketState.drawNeeded} ใบ</strong></p>`;
+        html += `<button type="button" id="btn-draw-deck">จั่วจากกองกลาง (ไม่เห็นหน้าการ์ด)</button>`;
+        if (leftTop) {
+          html += `<button type="button" id="btn-draw-left" class="secondary">หยิบจากกองทิ้งซ้าย: ${leftTop.name} (${leftTop.typeText})</button>`;
+        }
+        if (rightTop) {
+          html += `<button type="button" id="btn-draw-right" class="secondary">หยิบจากกองทิ้งขวา: ${rightTop.name} (${rightTop.typeText})</button>`;
+        }
+        container.innerHTML = html;
+
+        document.getElementById("btn-draw-deck").addEventListener("click", () => handleMarketDraw("deck"));
+        if (leftTop) document.getElementById("btn-draw-left").addEventListener("click", () => handleMarketDraw("left"));
+        if (rightTop) document.getElementById("btn-draw-right").addEventListener("click", () => handleMarketDraw("right"));
+
+      } else if (localMarketState.step === "discard") {
+        const names = localMarketState.setAsideCards.map(k => CARD_TYPES[k].name).join(", ");
+        container.innerHTML = `
+          <p><strong>ขั้นตอนสุดท้ายของตลาด:</strong> เลือกกองทิ้งที่จะวางการ์ด ${localMarketState.setAsideCards.length} ใบที่คุณตั้งพักไว้ (${names})</p>
+          <button type="button" id="btn-dump-left">ทิ้งลงกองทิ้งซ้าย</button>
+          <button type="button" id="btn-dump-right" class="secondary">ทิ้งลงกองทิ้งขวา</button>
+        `;
+        document.getElementById("btn-dump-left").addEventListener("click", () => handleMarketDump("left"));
+        document.getElementById("btn-dump-right").addEventListener("click", () => handleMarketDump("right"));
+      }
+    }
+
+    async function handleMarketDraw(source) {
+      const snap = await db.ref("rooms/" + currentRoomCode).once("value");
+      const room = snap.val();
+      const deck = room.deck || [];
+      const dLeft = room.discardLeft || [];
+      const dRight = room.discardRight || [];
+      const hand = room.players[myPlayerId].hand || [];
+
+      if (localMarketState.setAsideIndices.length > 0) {
+        const keepHand = hand.filter((_, idx) => !localMarketState.setAsideIndices.includes(idx));
+        hand.length = 0;
+        hand.push(...keepHand);
+        localMarketState.setAsideIndices = [];
+      }
+
+      let drawnCard = null;
+      if (source === "deck") {
+        const res = drawFromDeck(deck, dLeft, dRight, 1);
+        drawnCard = res[0];
+      } else if (source === "left" && dLeft.length > 0) {
+        drawnCard = dLeft.pop();
+      } else if (source === "right" && dRight.length > 0) {
+        drawnCard = dRight.pop();
+      }
+
+      if (!drawnCard) return;
+      hand.push(drawnCard);
+      localMarketState.drawNeeded -= 1;
+
+      if (localMarketState.drawNeeded <= 0) {
+        localMarketState.step = "discard";
+      }
+
+      SoundFX.card();
+      const cInfo = CARD_TYPES[drawnCard];
+      announce(`คุณได้การ์ด ${cInfo.name} (${cInfo.typeText}) เหลือต้องจั่วอีก ${localMarketState.drawNeeded} ใบ`, true);
+
+      lastActionRenderKey = "";
+      await db.ref("rooms/" + currentRoomCode).update({
+        deck,
+        discardLeft: dLeft,
+        discardRight: dRight,
+        [`players/${myPlayerId}/hand`]: hand
+      });
+    }
+
+    async function handleMarketDump(targetPile) {
+      const snap = await db.ref("rooms/" + currentRoomCode).once("value");
+      const room = snap.val();
+      const dLeft = room.discardLeft || [];
+      const dRight = room.discardRight || [];
+
+      if (targetPile === "left") dLeft.push(...localMarketState.setAsideCards);
+      else dRight.push(...localMarketState.setAsideCards);
+
+      const count = localMarketState.setAsideCards.length;
+      const pileText = targetPile === "left" ? "กองทิ้งซ้าย" : "กองทิ้งขวา";
+      localMarketState = { step: "select", setAsideIndices: [], setAsideCards: [], drawNeeded: 0 };
+
+      SoundFX.card();
+      await finishMarketTurn(dLeft, dRight, `เปลี่ยนการ์ด ${count} ใบ และทิ้งลง${pileText}`);
+    }
+
+    async function finishMarketTurn(updatedLeft = null, updatedRight = null, actionDesc = "ไม่เปลี่ยนการ์ด") {
+      const snap = await db.ref("rooms/" + currentRoomCode).once("value");
+      const room = snap.val();
+      const merchants = getMerchants(room);
+      const myName = room.players[myPlayerId].name;
+      const nextIdx = (room.marketTurnIndex || 0) + 1;
+      const logs = room.logs || [];
+      logs.push(`พ่อค้า ${myName} ${actionDesc}`);
+
+      const updates = { logs };
+      if (updatedLeft !== null) updates.discardLeft = updatedLeft;
+      if (updatedRight !== null) updates.discardRight = updatedRight;
+
+      if (nextIdx >= merchants.length) {
+        updates.phase = "load_declare";
+        logs.push("จบเฟสตลาด! เข้าสู่เฟสใส่สินค้าลงถุงและประกาศสินค้า พ่อค้าทุกคนเลือกสินค้าได้เลย");
+        updates.lastSoundEvent = { type: "card", id: Date.now() };
+      } else {
+        updates.marketTurnIndex = nextIdx;
+        const nextName = room.players[merchants[nextIdx]].name;
+        logs.push(`ถึงตาพ่อค้า ${nextName} ในเฟสตลาด`);
+      }
+
+      lastActionRenderKey = "";
+      await db.ref("rooms/" + currentRoomCode).update(updates);
+    }
+
+    // ---------- เฟสที่ 2 และ 3: ใส่ถุงและประกาศ ----------
+    function renderLoadDeclareAction(room, container) {
+      const isSheriff = (room.sheriffId === myPlayerId);
+      const merchants = getMerchants(room);
+      const submittedCount = merchants.filter(pid => room.players[pid]?.bag?.submitted).length;
+
+      if (isSheriff) {
+        container.innerHTML = `<p>คุณเป็น <strong>ผู้ตรวจการ</strong> ในรอบนี้ กำลังรอพ่อค้าจัดของใส่ถุงและประกาศสินค้า (${submittedCount} จาก ${merchants.length} คน)</p>`;
+        return;
+      }
+
+      const me = room.players[myPlayerId];
+      if (me.bag && me.bag.submitted) {
+        const gName = CARD_TYPES[me.bag.declaredGood]?.name || "-";
+        container.innerHTML = `<p>คุณส่งถุงสินค้าเรียบร้อยแล้ว (ประกาศว่าใส่ <strong>${gName} ${me.bag.declaredCount} ใบ</strong>) กำลังรอพ่อค้าคนอื่น (${submittedCount} จาก ${merchants.length} คน)...</p>`;
+        return;
+      }
+
+      const hand = me.hand || [];
+      let html = `<p>เลือกสินค้า 1 ถึง 5 ใบใส่ลงในถุง แล้วเลือกชนิดสินค้าถูกกฎหมายที่คุณจะประกาศต่อผู้ตรวจการ</p>`;
+      html += `<fieldset><legend>1. เลือกการ์ดใส่ถุง (1 ถึง 5 ใบ)</legend><div class="hand-grid">`;
+      hand.forEach((cardKey, idx) => {
+        const c = CARD_TYPES[cardKey];
+        html += `<label class="game-card ${c.type} checkbox-card">
+          <input type="checkbox" name="bag-card" value="${idx}">
+          <span><strong>${c.name}</strong> (${c.typeText})<br>มูลค่า ${c.value} | ปรับ ${c.penalty}</span>
+        </label>`;
+      });
+      html += `</div></fieldset>`;
+
+      html += `<fieldset><legend>2. ประกาศชนิดสินค้า (ต้องเป็นสินค้าถูกกฎหมายเท่านั้น)</legend><div class="radio-group">`;
+      LEGAL_KEYS.forEach((key, idx) => {
+        const c = CARD_TYPES[key];
+        html += `<label class="radio-option">
+          <input type="radio" name="declare-good" value="${key}" ${idx === 0 ? "checked" : ""}>
+          <span>${c.name}</span>
+        </label>`;
+      });
+      html += `</div></fieldset>`;
+
+      html += `<button type="button" id="btn-submit-bag">ปิดถุงและประกาศสินค้า</button>`;
+      container.innerHTML = html;
+
+      document.getElementById("btn-submit-bag").addEventListener("click", async () => {
+        const checked = Array.from(document.querySelectorAll('input[name="bag-card"]:checked')).map(el => Number(el.value));
+        const declaredGoodEl = document.querySelector('input[name="declare-good"]:checked');
+        const errEl = document.getElementById("action-error");
+        errEl.textContent = "";
+
+        if (checked.length < 1 || checked.length > 5) {
+          SoundFX.error();
+          errEl.textContent = "กรุณาเลือกการ์ดใส่ถุงอย่างน้อย 1 ใบ และไม่เกิน 5 ใบครับ";
+          return;
+        }
+
+        const declaredGood = declaredGoodEl.value;
+        const snap = await db.ref("rooms/" + currentRoomCode).once("value");
+        const latestRoom = snap.val();
+        const myHand = latestRoom.players[myPlayerId].hand || [];
+
+        const actualCards = checked.map(i => myHand[i]);
+        const remainingHand = myHand.filter((_, i) => !checked.includes(i));
+        const myName = latestRoom.players[myPlayerId].name;
+
+        const logs = latestRoom.logs || [];
+        logs.push(`พ่อค้า ${myName} ปิดถุงและประกาศว่าใส่ ${CARD_TYPES[declaredGood].name} จำนวน ${actualCards.length} ใบ`);
+
+        const updates = {
+          [`players/${myPlayerId}/hand`]: remainingHand,
+          [`players/${myPlayerId}/bag`]: {
+            submitted: true,
+            resolved: false,
+            actualCards: actualCards,
+            declaredGood: declaredGood,
+            declaredCount: actualCards.length,
+            bribeOffer: 0,
+            resultText: ""
+          },
+          logs: logs,
+          lastSoundEvent: { type: "zipBag", id: Date.now() }
+        };
+
+        const allMerchants = getMerchants(latestRoom);
+        const othersSubmitted = allMerchants.every(pid => pid === myPlayerId || latestRoom.players[pid]?.bag?.submitted);
+        if (othersSubmitted) {
+          updates.phase = "inspection";
+          const sheriffName = latestRoom.players[latestRoom.sheriffId].name;
+          logs.push(`พ่อค้าทุกคนส่งถุงครบแล้ว! เข้าสู่เฟสตรวจค้น ผู้ตรวจการ ${sheriffName} เริ่มเจรจาและตัดสินใจได้เลย`);
+        }
+
+        lastActionRenderKey = "";
+        await db.ref("rooms/" + currentRoomCode).update(updates);
+      });
+    }
+
+    // ---------- เฟสที่ 4: ตรวจค้นและต่อรองสินบน ----------
+    function renderInspectionAction(room, container) {
+      const isSheriff = (room.sheriffId === myPlayerId);
+      const merchants = getMerchants(room);
+      const allResolved = merchants.every(pid => room.players[pid]?.bag?.resolved);
+
+      if (isSheriff) {
+        let html = `<p>คุณคือ <strong>ผู้ตรวจการ</strong> สามารถคุยต่อรองสินบนกับพ่อค้าทางเสียง แล้วเลือก <strong>ปล่อยผ่าน</strong> หรือ <strong>เปิดถุงตรวจค้น</strong> ได้ตามลำดับที่ต้องการ</p>`;
+
+        merchants.forEach(pid => {
+          const p = room.players[pid];
+          const bag = p.bag || {};
+          const gName = CARD_TYPES[bag.declaredGood]?.name || "-";
+          const bribe = bag.bribeOffer || 0;
+
+          if (bag.resolved) {
+            html += `<div class="merchant-inspect-box resolved">
+              <h4>พ่อค้า ${p.name} (ดำเนินการเสร็จแล้ว)</h4>
+              <p>${bag.resultText}</p>
+            </div>`;
+          } else {
+            html += `<div class="merchant-inspect-box">
+              <h4>พ่อค้า ${p.name}</h4>
+              <p>ประกาศสินค้า: <strong>${gName} จำนวน ${bag.declaredCount} ใบ</strong> | เงินคงเหลือของพ่อค้า: ${p.gold} เหรียญ</p>
+              <p>ข้อเสนอสินบนปัจจุบัน: <strong>${bribe} เหรียญ</strong></p>
+              <button type="button" class="success btn-pass-bag" data-pid="${pid}">
+                ปล่อยผ่าน ${bribe > 0 ? `(รับสินบน ${bribe} เหรียญ)` : "(ไม่รับสินบน)"}
+              </button>
+              <button type="button" class="danger btn-inspect-bag" data-pid="${pid}">
+                เปิดถุงตรวจค้น!
+              </button>
+            </div>`;
+          }
+        });
+
+        if (allResolved) {
+          const isLastRound = (room.round >= room.totalRounds);
+          html += `<button type="button" id="btn-next-round">${isLastRound ? "จบเกมและคำนวณคะแนนสุดท้าย" : "จบรอบนี้และส่งต่อตำแหน่งผู้ตรวจการ"}</button>`;
+        }
+
+        container.innerHTML = html;
+
+        document.querySelectorAll(".btn-pass-bag").forEach(btn => {
+          btn.addEventListener("click", () => resolveBag(btn.dataset.pid, false));
+        });
+        document.querySelectorAll(".btn-inspect-bag").forEach(btn => {
+          btn.addEventListener("click", () => resolveBag(btn.dataset.pid, true));
+        });
+        const nextBtn = document.getElementById("btn-next-round");
+        if (nextBtn) nextBtn.addEventListener("click", () => endRoundAndAdvance());
+
+      } else {
+        const me = room.players[myPlayerId];
+        const bag = me.bag || {};
+        const gName = CARD_TYPES[bag.declaredGood]?.name || "-";
+        const myActualNames = (bag.actualCards || []).map(k => CARD_TYPES[k].name).join(", ");
+
+        if (bag.resolved) {
+          container.innerHTML = `
+            <p><strong>ผลการตรวจถุงของคุณ:</strong> ${bag.resultText}</p>
+            <p>${allResolved ? "ตรวจครบทุกคนแล้ว กำลังรอผู้ตรวจการกดเริ่มรอบถัดไป..." : "กำลังรอผู้ตรวจการตัดสินใจกับพ่อค้าคนอื่น..."}</p>
+          `;
+        } else {
+          container.innerHTML = `
+            <p>คุณประกาศว่าใส่ <strong>${gName} ${bag.declaredCount} ใบ</strong> (ของจริงในถุงของคุณคือ: ${myActualNames})</p>
+            <div class="form-group">
+              <label for="bribe-input">เสนอสินบนให้ผู้ตรวจการ (จำนวนเหรียญที่คุณมีตอนนี้: ${me.gold} เหรียญ)</label>
+              <input type="number" id="bribe-input" min="0" max="${me.gold}" value="${bag.bribeOffer || 0}">
+            </div>
+            <button type="button" id="btn-offer-bribe" class="secondary">ส่งข้อเสนอสินบน</button>
+            <p>กำลังรอผู้ตรวจการตัดสินใจ...</p>
+          `;
+
+          document.getElementById("btn-offer-bribe").addEventListener("click", async () => {
+            const val = Math.max(0, Math.min(me.gold, parseInt(document.getElementById("bribe-input").value, 10) || 0));
+            const snap = await db.ref("rooms/" + currentRoomCode).once("value");
+            const latestRoom = snap.val();
+            const logs = latestRoom.logs || [];
+            logs.push(`พ่อค้า ${me.name} เสนอสินบนจำนวน ${val} เหรียญให้ผู้ตรวจการ`);
+            await db.ref("rooms/" + currentRoomCode).update({
+              [`players/${myPlayerId}/bag/bribeOffer`]: val,
+              logs: logs,
+              lastSoundEvent: { type: "coin", id: Date.now() }
+            });
+            announce(`ส่งข้อเสนอสินบน ${val} เหรียญเรียบร้อยแล้ว`);
+          });
+        }
+      }
+    }
+
+    async function resolveBag(merchantId, doInspect) {
+      const snap = await db.ref("rooms/" + currentRoomCode).once("value");
+      const room = snap.val();
+      const sheriffId = room.sheriffId;
+      const sheriff = room.players[sheriffId];
+      const merchant = room.players[merchantId];
+      const bag = merchant.bag;
+      if (!bag || bag.resolved) return;
+
+      const actualCards = bag.actualCards || [];
+      const stallLegal = merchant.stallLegal || [];
+      const stallContraband = merchant.stallContraband || [];
+      const dLeft = room.discardLeft || [];
+      const logs = room.logs || [];
+      let resultText = "";
+      let soundType = "honest";
+
+      if (!doInspect) {
+        const bribe = Math.min(merchant.gold, bag.bribeOffer || 0);
+        merchant.gold -= bribe;
+        sheriff.gold += bribe;
+
+        actualCards.forEach(k => {
+          if (CARD_TYPES[k].type === "legal") stallLegal.push(k);
+          else stallContraband.push(k);
+        });
+
+        resultText = bribe > 0
+          ? `ผู้ตรวจการรับสินบน ${bribe} เหรียญ และปล่อยถุงของ ${merchant.name} ผ่านเข้าเมืองโดยไม่ตรวจ`
+          : `ผู้ตรวจการปล่อยถุงของ ${merchant.name} ผ่านเข้าเมืองโดยไม่ตรวจ`;
+        soundType = bribe > 0 ? "coin" : "honest";
+      } else {
+        const wrongCards = actualCards.filter(k => k !== bag.declaredGood);
+        const honestCards = actualCards.filter(k => k === bag.declaredGood);
+
+        if (wrongCards.length === 0) {
+          const totalPenalty = actualCards.reduce((sum, k) => sum + CARD_TYPES[k].penalty, 0);
+          const paid = Math.min(sheriff.gold, totalPenalty);
+          sheriff.gold -= paid;
+          merchant.gold += paid;
+          honestCards.forEach(k => stallLegal.push(k));
+
+          resultText = `ผู้ตรวจการเปิดถุงของ ${merchant.name} พบว่าเป็น ${CARD_TYPES[bag.declaredGood].name} แท้ทั้งหมด ${actualCards.length} ใบ! ผู้ตรวจการจ่ายค่าปรับให้พ่อค้า ${paid} เหรียญ`;
+          soundType = "honest";
+        } else {
+          const totalPenalty = wrongCards.reduce((sum, k) => sum + CARD_TYPES[k].penalty, 0);
+          const paid = Math.min(merchant.gold, totalPenalty);
+          merchant.gold -= paid;
+          sheriff.gold += paid;
+
+          honestCards.forEach(k => stallLegal.push(k));
+          wrongCards.forEach(k => dLeft.push(k));
+
+          const wrongNames = wrongCards.map(k => CARD_TYPES[k].name).join(", ");
+          resultText = `จับได้! ในถุงของ ${merchant.name} มีของไม่ตรงที่ประกาศถูกยึดคือ ${wrongNames} พ่อค้าต้องจ่ายค่าปรับให้ผู้ตรวจการ ${paid} เหรียญ`;
+          soundType = "caught";
+        }
+      }
+
+      logs.push(resultText);
+
+      await db.ref("rooms/" + currentRoomCode).update({
+        discardLeft: dLeft,
+        [`players/${sheriffId}/gold`]: sheriff.gold,
+        [`players/${merchantId}/gold`]: merchant.gold,
+        [`players/${merchantId}/stallLegal`]: stallLegal,
+        [`players/${merchantId}/stallContraband`]: stallContraband,
+        [`players/${merchantId}/bag/resolved`]: true,
+        [`players/${merchantId}/bag/resultText`]: resultText,
+        logs: logs,
+        lastSoundEvent: { type: soundType, id: Date.now() }
+      });
+    }
+
+    // ---------- จบรอบ / เริ่มรอบใหม่ / จบเกม ----------
+    async function endRoundAndAdvance() {
+      const snap = await db.ref("rooms/" + currentRoomCode).once("value");
+      const room = snap.val();
+      const logs = room.logs || [];
+
+      if (room.round >= room.totalRounds) {
+        logs.push("เล่นครบทุกรอบแล้ว! กำลังสรุปคะแนนสุดท้าย");
+        await db.ref("rooms/" + currentRoomCode).update({
+          status: "finished",
+          logs: logs,
+          lastSoundEvent: { type: "win", id: Date.now() }
+        });
+        return;
+      }
+
+      const deck = room.deck || [];
+      const dLeft = room.discardLeft || [];
+      const dRight = room.discardRight || [];
+      const order = room.playerOrder || [];
+      const updatedPlayers = { ...room.players };
+
+      order.forEach(pid => {
+        const p = updatedPlayers[pid];
+        const hand = p.hand || [];
+        const need = Math.max(0, 6 - hand.length);
+        if (need > 0) {
+          hand.push(...drawFromDeck(deck, dLeft, dRight, need));
+        }
+        p.hand = hand;
+        p.bag = { submitted: false, resolved: false, actualCards: [], declaredGood: "", declaredCount: 0, bribeOffer: 0, resultText: "" };
+      });
+
+      const nextRound = room.round + 1;
+      const nextSheriffIndex = (room.sheriffIndex + 1) % order.length;
+      const nextSheriffId = order[nextSheriffIndex];
+      const nextSheriffName = updatedPlayers[nextSheriffId].name;
+
+      logs.push(`เริ่มรอบที่ ${nextRound}! ผู้ตรวจการคนใหม่คือ ${nextSheriffName} เข้าสู่เฟสตลาด`);
+
+      lastActionRenderKey = "";
+      await db.ref("rooms/" + currentRoomCode).update({
+        round: nextRound,
+        phase: "market",
+        sheriffIndex: nextSheriffIndex,
+        sheriffId: nextSheriffId,
+        marketTurnIndex: 0,
+        deck: deck,
+        discardLeft: dLeft,
+        discardRight: dRight,
+        players: updatedPlayers,
+        logs: logs,
+        lastSoundEvent: { type: "startGame", id: Date.now() }
+      });
+    }
+
+    // ==========================================
+    // 8. คำนวณคะแนนจบเกมและโบนัสราชา-ราชินี
+    // ==========================================
+    function renderGameOver(room) {
+      if (document.getElementById("view-gameover").classList.contains("hidden")) {
+        showView("view-gameover", "heading-gameover");
+      }
+
+      const order = room.playerOrder || Object.keys(room.players || {});
+      const stats = order.map(pid => {
+        const p = room.players[pid];
+        const legal = p.stallLegal || [];
+        const contra = p.stallContraband || [];
+        const legalCounts = { apple: 0, cheese: 0, bread: 0, chicken: 0 };
+        legal.forEach(k => { if (legalCounts[k] !== undefined) legalCounts[k]++; });
+
+        const legalScore = legal.reduce((s, k) => s + CARD_TYPES[k].value, 0);
+        const contraScore = contra.reduce((s, k) => s + CARD_TYPES[k].value, 0);
+
+        return {
+          pid,
+          name: p.name,
+          gold: p.gold || 0,
+          legalScore,
+          contraScore,
+          contraCount: contra.length,
+          legalCounts,
+          bonusScore: 0,
+          totalScore: 0
+        };
+      });
+
+      const bonusNotes = [];
+      LEGAL_KEYS.forEach(goodKey => {
+        const info = CARD_TYPES[goodKey];
+        const sorted = [...stats].filter(s => s.legalCounts[goodKey] > 0)
+          .sort((a, b) => b.legalCounts[goodKey] - a.legalCounts[goodKey]);
+
+        if (sorted.length === 0) return;
+
+        const maxCount = sorted[0].legalCounts[goodKey];
+        const kings = sorted.filter(s => s.legalCounts[goodKey] === maxCount);
+
+        if (kings.length > 1) {
+          const splitBonus = Math.floor((info.king + info.queen) / kings.length);
+          kings.forEach(k => k.bonusScore += splitBonus);
+          bonusNotes.push(`ราชา${info.name} (เสมอ ${kings.length} คน): ${kings.map(k => k.name).join(", ")} ได้คนละ ${splitBonus} คะแนน`);
+        } else {
+          kings[0].bonusScore += info.king;
+          let note = `ราชา${info.name}: ${kings[0].name} (+${info.king})`;
+          const remaining = sorted.filter(s => s.legalCounts[goodKey] < maxCount);
+          if (remaining.length > 0) {
+            const secondCount = remaining[0].legalCounts[goodKey];
+            const queens = remaining.filter(s => s.legalCounts[goodKey] === secondCount);
+            const splitQueen = Math.floor(info.queen / queens.length);
+            queens.forEach(q => q.bonusScore += splitQueen);
+            note += ` | ราชินี${info.name}: ${queens.map(q => q.name).join(", ")} (+${splitQueen})`;
+          }
+          bonusNotes.push(note);
+        }
+      });
+
+      stats.forEach(s => {
+        s.totalScore = s.gold + s.legalScore + s.contraScore + s.bonusScore;
+      });
+      stats.sort((a, b) => b.totalScore - a.totalScore);
+
+      const winner = stats[0];
+      document.getElementById("winner-banner").textContent = `ผู้ชนะคือ ${winner.name} ด้วยคะแนนรวม ${winner.totalScore} คะแนน!`;
+
+      document.getElementById("bonus-summary").innerHTML = bonusNotes.length > 0
+        ? `<h3>โบนัสราชาและราชินีสินค้า</h3><ul>${bonusNotes.map(n => `<li>${n}</li>`).join("")}</ul>`
+        : "";
+
+      let tableHtml = `<table>
+        <thead>
+          <tr>
+            <th scope="col">อันดับ</th>
+            <th scope="col">ผู้เล่น</th>
+            <th scope="col">เงินสด</th>
+            <th scope="col">สินค้าถูกกฎหมาย</th>
+            <th scope="col">ของเถื่อน</th>
+            <th scope="col">โบนัสราชา-ราชินี</th>
+            <th scope="col">รวมทั้งหมด</th>
+          </tr>
+        </thead>
+        <tbody>`;
+
+      stats.forEach((s, idx) => {
+        tableHtml += `<tr>
+          <td>${idx + 1}</td>
+          <td>${s.name}</td>
+          <td>${s.gold}</td>
+          <td>${s.legalScore}</td>
+          <td>${s.contraScore} (${s.contraCount} ใบ)</td>
+          <td>${s.bonusScore}</td>
+          <td><strong>${s.totalScore}</strong></td>
+        </tr>`;
+      });
+
+      tableHtml += `</tbody></table>`;
+      document.getElementById("scoreboard-container").innerHTML = tableHtml;
+
+      const isHost = (room.hostId === myPlayerId);
+      document.getElementById("btn-play-again").classList.toggle("hidden", !isHost);
+      announce(`จบเกมแล้ว! ผู้ชนะคือ ${winner.name} ด้วยคะแนนรวม ${winner.totalScore} คะแนน`, true);
+    }
+
+    // ==========================================
+    // 9. ตรวจสอบลิงก์เชิญเพื่อนตอนเปิดหน้าเว็บ
+    // ==========================================
+    function checkInviteLink() {
+      const params = new URLSearchParams(window.location.search);
+      const inviteCode = (params.get("room") || "").trim().toUpperCase();
+      if (inviteCode) {
+        const roomInput = document.getElementById("room-code-input");
+        const banner = document.getElementById("invite-banner");
+        roomInput.value = inviteCode;
+        banner.textContent = `คุณได้รับเชิญให้เข้าห้องรหัส ${inviteCode} ระบบกรอกรหัสห้องให้เรียบร้อยแล้ว กรุณากรอกชื่อผู้เล่นแล้วกดปุ่มเข้าร่วมห้องได้เลยครับ`;
+        banner.classList.remove("hidden");
+        document.getElementById("player-name").focus();
+        announce(`เปิดจากลิงก์เชิญเข้าห้องรหัส ${inviteCode} กรุณากรอกชื่อผู้เล่นแล้วกดปุ่มเข้าร่วมห้อง`, true);
+      }
+    }
+    checkInviteLink();
+
+    // ==========================================
+    // 10. ลงทะเบียน Service Worker และระบบติดตั้ง PWA
     // ==========================================
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => {
@@ -726,5 +1729,6 @@
         deferredInstallPrompt = null;
       });
     }
+  </script>
 </body>
 </html>
