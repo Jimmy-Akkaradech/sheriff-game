@@ -319,7 +319,28 @@
       max-height: 260px;
       overflow-y: auto;
       padding-left: 20px;
+      margin: 10px 0 0;
     }
+
+    /* บันทึกเหตุการณ์แบบพับเก็บได้ */
+    .log-panel { padding: 6px 18px; }
+
+    .log-panel summary {
+      cursor: pointer;
+      font-weight: 700;
+      padding: 12px 4px;
+      min-height: 46px;
+    }
+
+    .log-panel summary:focus-visible {
+      outline: 3px solid #b45309;
+      outline-offset: 2px;
+      border-radius: 6px;
+    }
+
+    .log-panel summary.has-new { color: var(--primary); }
+
+    .room-footer { margin-bottom: 18px; }
   </style>
 </head>
 <body>
@@ -348,6 +369,7 @@
           ไมค์: เปิดอยู่ (Alt+M)
         </button>
         <button type="button" id="btn-voice-leave" class="danger hidden">วางสายเสียง</button>
+        <button type="button" id="btn-voice-unblock" class="secondary hidden">แตะเพื่อเปิดเสียงเพื่อน</button>
       </div>
     </section>
     <div id="voice-audio-container" aria-hidden="true"></div>
@@ -355,6 +377,7 @@
     <!-- พื้นที่แจ้งเตือนอัตโนมัติสำหรับโปรแกรมอ่านจอภาพ -->
     <div id="sr-polite" class="sr-only" aria-live="polite" aria-atomic="true"></div>
     <div id="sr-assertive" class="sr-only" aria-live="assertive" aria-atomic="true"></div>
+    <div id="sr-presence" class="sr-only" aria-live="polite" aria-atomic="true"></div>
 
     <!-- ========================================== -->
     <!-- หน้าจอที่ 1: หน้าแรก (สร้างห้อง / เข้าร่วม) -->
@@ -407,6 +430,7 @@
 
       <h3>รายชื่อผู้เล่นในห้อง (<span id="player-count">0</span> / 12 คน)</h3>
       <ul id="lobby-player-list"></ul>
+      <p>หากหลุดหรือเผลอปิดแอป ให้กลับมาใส่รหัสห้องเดิมและชื่อเดิม แล้วเล่นต่อได้ จนกว่าหัวหน้าห้องจะปิดห้อง</p>
 
       <div id="host-controls" class="hidden">
         <fieldset>
@@ -424,6 +448,7 @@
         </fieldset>
         <p id="lobby-mode-hint">หากมีผู้เล่น 6 ถึง 12 คน ระบบจะสุ่มผู้ตรวจการ 2 คนแยกตัดสินใจให้อัตโนมัติ</p>
         <button type="button" id="btn-start-game" class="success">เริ่มเกมและแจกการ์ด</button>
+        <button type="button" class="danger btn-close-room hidden">ปิดห้อง</button>
       </div>
 
       <p id="waiting-msg" class="hidden">กำลังรอหัวหน้าห้องกดเริ่มเกม...</p>
@@ -475,11 +500,18 @@
         <ul id="my-hand-list" class="hand-grid"></ul>
       </section>
 
-      <!-- ประวัติเหตุการณ์ -->
-      <section class="card-panel" aria-labelledby="log-heading">
-        <h3 id="log-heading">บันทึกเหตุการณ์ล่าสุด</h3>
-        <ul id="game-log-list" class="log-list"></ul>
+      <!-- ประวัติเหตุการณ์ (พับเก็บไว้ก่อน กดที่หัวข้อเพื่อเปิดดู) -->
+      <section class="card-panel log-panel" aria-label="บันทึกเหตุการณ์">
+        <details id="log-details">
+          <summary id="log-summary"><span id="log-summary-text">บันทึกเหตุการณ์ (ยังไม่มี)</span></summary>
+          <ul id="game-log-list" class="log-list"></ul>
+        </details>
       </section>
+
+      <!-- เมนูห้อง (เห็นเฉพาะหัวหน้าห้อง) -->
+      <div class="room-footer">
+        <button type="button" class="danger btn-close-room hidden">ปิดห้อง (ผู้เล่นทุกคนจะออกจากห้อง)</button>
+      </div>
     </section>
 
     <!-- ========================================== -->
@@ -493,6 +525,7 @@
       <div style="margin-top: 20px;">
         <button type="button" id="btn-play-again" class="hidden">เริ่มเกมใหม่ในห้องเดิม</button>
         <button type="button" id="btn-back-home" class="secondary">กลับหน้าแรก</button>
+        <button type="button" class="danger btn-close-room hidden">ปิดห้อง</button>
       </div>
     </section>
   </main>
@@ -543,7 +576,12 @@
     const LEGAL_KEYS = ["rice", "mango", "fishsauce", "plara", "mackerel", "durian"];
     const ALL_CARD_KEYS = Object.keys(CARD_TYPES);
     const MAX_PLAYERS = 12;
-    // ถ้าเพื่อนอยู่คนละเครือข่ายแล้วไม่ได้ยินเสียง ให้ใส่ TURN server ที่นี่ เช่น { urls: "turn:host:3478", username: "...", credential: "..." }
+    // ===== ตั้งค่า TURN server =====
+    // จำเป็นเมื่อผู้เล่นอยู่คนละเครือข่าย เช่น คนหนึ่งใช้ Wi-Fi อีกคนใช้เน็ตมือถือ ไม่งั้นไมค์เปิดแล้วก็ยังไม่ได้ยินกัน
+    // วิธีง่ายสุด: สมัครฟรีที่ metered.ca (Open Relay, ฟรี 20 GB/เดือน) แล้วนำลิงก์ดึงรหัส TURN จากหน้า Dashboard มาใส่ที่นี่ เช่น
+    //   "https://openrelayproject.metered.ca/api/v1/turn/credentials?apiKey=คีย์ของคุณ"
+    // หรือจะกำหนดเองใน TURN_SERVERS ก็ได้ เช่น { urls: "turn:host:3478", username: "...", credential: "..." }
+    const TURN_CREDENTIALS_URL = "";
     const TURN_SERVERS = [];
 
     const urlPid = (new URLSearchParams(location.search).get("pid") || "").replace(/\W/g, "").slice(0, 12);
@@ -574,6 +612,65 @@
       const el = document.getElementById(urgent ? "sr-assertive" : "sr-polite");
       el.textContent = "";
       setTimeout(() => { el.textContent = message; }, 60);
+    }
+
+    // แจ้งคนเข้า/ออก/หลุดการเชื่อมต่อ (แยกช่องออกมา ไม่ให้ชนกับการประกาศบันทึกเหตุการณ์ในเกม)
+    function announcePresence(message) {
+      const el = document.getElementById("sr-presence");
+      el.textContent = "";
+      setTimeout(() => { el.textContent = message; }, 60);
+    }
+
+    // ---------- จำห้องที่กำลังเล่นไว้ในเครื่อง เพื่อกลับเข้าห้องเดิมได้หลังปิด/เปิดแอปใหม่ ----------
+    const SESSION_KEY = "sheriff_session";
+    function readSession() {
+      try { return JSON.parse(localStorage.getItem(SESSION_KEY) || "null"); } catch (e) { return null; }
+    }
+    function writeSession(patch) {
+      try { localStorage.setItem(SESSION_KEY, JSON.stringify(Object.assign(readSession() || {}, patch))); } catch (e) {}
+    }
+    // เลิกกลับเข้าห้องอัตโนมัติ (forgetRoom = true คือลืมรหัสห้องด้วย เช่น ห้องถูกปิดแล้ว)
+    function endSession(forgetRoom) {
+      writeSession(forgetRoom ? { active: false, voice: false, code: "" } : { active: false, voice: false });
+    }
+
+    let prevPresence = null;      // สถานะผู้เล่นรอบก่อน ใช้เทียบหาคนเข้า/ออก/หลุด
+    let iWasInRoom = false;
+    let lastSavedSession = "";
+    let logSeenCount = null;      // จำนวนบันทึกเหตุการณ์ที่เปิดอ่านแล้ว
+
+    // เทียบรายชื่อผู้เล่นกับรอบก่อน แล้วเล่นเสียง/แจ้งโปรแกรมอ่านจอภาพ เมื่อมีคนเข้า ออก หลุด หรือกลับมา
+    function trackPresence(room) {
+      const now = {};
+      Object.entries(room.players || {}).forEach(([pid, p]) => {
+        now[pid] = { name: p.name, online: p.online !== false, left: !!p.left };
+      });
+      const before = prevPresence;
+      prevPresence = now;
+      if (!before) return; // รอบแรกหลังเข้าห้อง ใช้เป็นฐานเปรียบเทียบเท่านั้น
+
+      const events = [];
+      Object.keys(now).forEach(pid => {
+        if (pid === myPlayerId) return;
+        const cur = now[pid], old = before[pid];
+        if (!old) {
+          events.push({ sound: "join", text: `${cur.name} เข้าร่วมห้องแล้ว` });
+        } else if (old.online && !cur.online) {
+          events.push(cur.left
+            ? { sound: "leave", text: `${cur.name} ออกจากห้องแล้ว` }
+            : { sound: "disconnect", text: `${cur.name} หลุดจากการเชื่อมต่อ` });
+        } else if (!old.online && cur.online) {
+          events.push({ sound: "reconnect", text: `${cur.name} กลับเข้ามาในห้องอีกครั้ง` });
+        }
+      });
+      Object.keys(before).forEach(pid => {
+        if (pid !== myPlayerId && !now[pid]) events.push({ sound: "leave", text: `${before[pid].name} ออกจากห้องแล้ว` });
+      });
+      if (events.length === 0) return;
+
+      events.slice(0, 3).forEach((ev, i) => setTimeout(() => SoundFX[ev.sound](), i * 450));
+      const onlineCount = Object.values(now).filter(p => p.online).length;
+      announcePresence(`${events.map(e => e.text).join(" ... ")} ขณะนี้ออนไลน์ ${onlineCount} จาก ${Object.keys(now).length} คน`);
     }
 
     function iconSpan(cardKey) {
@@ -639,7 +736,13 @@
       win()       { this.playTone(523.25, 0.12, "triangle", 0.15, 0); this.playTone(659.25, 0.12, "triangle", 0.15, 0.12); this.playTone(783.99, 0.12, "triangle", 0.15, 0.24); this.playTone(1046.5, 0.38, "triangle", 0.16, 0.36); },
       error()     { this.playTone(220.00, 0.18, "sawtooth", 0.08, 0); },
       micOn()     { this.playTone(660, 0.07, "sine", 0.13, 0); this.playTone(880, 0.10, "sine", 0.13, 0.07); },
-      micOff()    { this.playTone(660, 0.07, "sine", 0.13, 0); this.playTone(440, 0.12, "sine", 0.13, 0.07); }
+      micOff()    { this.playTone(660, 0.07, "sine", 0.13, 0); this.playTone(440, 0.12, "sine", 0.13, 0.07); },
+      // เสียงเมื่อมีคนออกจากห้อง (ลงต่ำ 2 โน้ต)
+      leave()      { this.playTone(587.33, 0.12, "sine", 0.12, 0); this.playTone(392.00, 0.24, "sine", 0.12, 0.11); },
+      // เสียงเตือนเมื่อมีคนหลุดจากการเชื่อมต่อ (ต่ำ ทุ้ม 3 โน้ตไล่ลง)
+      disconnect() { this.playTone(311.13, 0.14, "square", 0.07, 0); this.playTone(246.94, 0.14, "square", 0.07, 0.16); this.playTone(196.00, 0.30, "square", 0.07, 0.32); },
+      // เสียงเมื่อคนที่หลุดกลับเข้ามาใหม่ (ไล่ขึ้น 3 โน้ต)
+      reconnect()  { this.playTone(392.00, 0.10, "triangle", 0.13, 0); this.playTone(523.25, 0.10, "triangle", 0.13, 0.10); this.playTone(783.99, 0.22, "triangle", 0.13, 0.20); }
     };
 
     document.getElementById("btn-toggle-sound").addEventListener("click", (e) => {
@@ -657,85 +760,190 @@
     // ==========================================
     // 4. ระบบคุยเสียง WebRTC ผ่าน Firebase (พร้อมคีย์ลัด Alt+M)
     // ==========================================
+    const nameOf = (pid) =>
+      (currentRoomData && currentRoomData.players && currentRoomData.players[pid] && currentRoomData.players[pid].name) || "เพื่อน";
+
     const VoiceChat = {
       active: false,
+      joining: false,
       muted: false,
       localStream: null,
-      pcs: {},
+      pcs: {},            // การเชื่อมต่อเสียงรายคน (peerId -> RTCPeerConnection)
+      knownPeers: {},     // รายชื่อคนในห้องเสียงล่าสุดจาก Firebase
+      retries: {},        // จำนวนครั้งที่ลองต่อใหม่ของแต่ละคน
+      retryTimers: {},
+      iceServers: null,
+      hasTurn: false,
       peersRef: null,
       signalsRef: null,
-      rtcConfig: {
-        iceServers: [
+      sigQueue: Promise.resolve(),
+      registering: false,
+      recovering: false,
+      audioBlocked: false,
+      micConstraints: {
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+        video: false
+      },
+
+      baseIce() {
+        return [
           { urls: "stun:stun.l.google.com:19302" },
           { urls: "stun:stun1.l.google.com:19302" },
           ...TURN_SERVERS
-        ]
+        ];
+      },
+
+      // รวม STUN + TURN (ถ้าตั้ง TURN_CREDENTIALS_URL ไว้จะดึงรหัสผ่าน TURN สดจากผู้ให้บริการ)
+      async loadIceServers() {
+        const list = this.baseIce();
+        if (TURN_CREDENTIALS_URL) {
+          try {
+            const ctrl = new AbortController();
+            const timer = setTimeout(() => ctrl.abort(), 5000);
+            const res = await fetch(TURN_CREDENTIALS_URL, { signal: ctrl.signal, cache: "no-store" });
+            clearTimeout(timer);
+            if (res.ok) {
+              const extra = await res.json();
+              if (Array.isArray(extra)) list.push(...extra);
+            }
+          } catch (err) {
+            console.log("ดึงรหัส TURN ไม่สำเร็จ:", err);
+          }
+        }
+        this.iceServers = list;
+        this.hasTurn = list.some(s => [].concat(s.urls || []).some(u => /^turns?:/i.test(u)));
+        return list;
       },
 
       async join() {
-        if (this.active || !currentRoomCode) return;
+        if (this.active || this.joining) return;
+        if (!currentRoomCode) { this.setStatus("ต้องอยู่ในห้องเกมก่อน จึงจะเข้าห้องคุยเสียงได้"); return; }
+        const ua = navigator.userAgent || "";
+        if (/Line\/|FBAN|FBAV|Instagram|MicroMessenger/i.test(ua)) {
+          this.setStatus("เบราว์เซอร์ในแอป (LINE, Facebook, Instagram) มักบล็อกไมโครโฟน กรุณาเปิดลิงก์นี้ด้วย Chrome หรือ Safari แทน");
+          return;
+        }
+        if (!window.isSecureContext || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          this.setStatus("เบราว์เซอร์นี้ใช้ไมโครโฟนไม่ได้ (ต้องเปิดผ่าน https และไม่ใช่เบราว์เซอร์ในแอป) กรุณาเปิดด้วย Chrome หรือ Safari");
+          return;
+        }
+        this.joining = true;
+        this.setStatus("กำลังขอสิทธิ์ใช้ไมโครโฟน กรุณากดอนุญาตในหน้าต่างที่เบราว์เซอร์แสดง...");
+        let stream;
         try {
-          this.localStream = await navigator.mediaDevices.getUserMedia({
-            audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-            video: false
-          });
+          stream = await navigator.mediaDevices.getUserMedia(this.micConstraints);
         } catch (err) {
+          this.joining = false;
           SoundFX.error();
-          announce("ไม่สามารถเข้าถึงไมโครโฟนได้ กรุณาอนุญาตสิทธิ์ไมโครโฟนในเบราว์เซอร์ก่อนครับ", true);
+          const reasons = {
+            NotAllowedError: "สิทธิ์ไมโครโฟนถูกปฏิเสธหรือถูกบล็อก ให้กดไอคอนแม่กุญแจข้างช่องที่อยู่เว็บ เปลี่ยนไมโครโฟนเป็นอนุญาต แล้วกดเข้าร่วมใหม่",
+            NotFoundError: "ไม่พบไมโครโฟนในอุปกรณ์นี้",
+            NotReadableError: "ไมโครโฟนกำลังถูกโปรแกรมอื่นใช้อยู่"
+          };
+          this.setStatus(reasons[err && err.name] || `เปิดไมโครโฟนไม่สำเร็จ (${err && err.name})`);
           return;
         }
 
+        await this.loadIceServers();
+        if (!currentRoomCode) {
+          // ออกจากห้องไปแล้วระหว่างรอ
+          stream.getTracks().forEach(t => t.stop());
+          this.joining = false;
+          return;
+        }
+
+        this.localStream = stream;
+        this.watchMic();
         this.active = true;
+        this.joining = false;
         this.muted = false;
+        this.audioBlocked = false;
         this.updateUI();
         SoundFX.micOn();
         announce("เปิดไมค์แล้ว กำลังเชื่อมต่อกับเพื่อนในห้อง กด Alt+M เพื่อเปิดหรือปิดไมค์ได้ทันที", true);
 
-        const basePath = `voice/${currentRoomCode}`;
-        const myPeerRef = db.ref(`${basePath}/peers/${myPlayerId}`);
-        myPeerRef.onDisconnect().remove();
         try {
-          await myPeerRef.set({ joinedAt: Date.now() });
+          await this.registerPresence();
         } catch (err) {
-          this.fail(err);
-          this.active = false;
-          if (this.localStream) { this.localStream.getTracks().forEach(t => t.stop()); this.localStream = null; }
-          this.updateUI();
+          this.teardownLocal();
           this.fail(err);
           return;
         }
+        this.attachListeners();
+        writeSession({ voice: true });
+      },
 
-        const mySignalRef = db.ref(`${basePath}/signals/${myPlayerId}`);
-        mySignalRef.onDisconnect().remove();
-        this.signalsRef = mySignalRef;
+      // ลงทะเบียนตัวเองในห้องเสียง (เรียกซ้ำอัตโนมัติได้ หากเน็ตหลุดแล้วเซิร์ฟเวอร์ลบชื่อเราออก)
+      async registerPresence() {
+        const base = `voice/${currentRoomCode}`;
+        const myPeerRef = db.ref(`${base}/peers/${myPlayerId}`);
+        const mySignalRef = db.ref(`${base}/signals/${myPlayerId}`);
+        myPeerRef.onDisconnect().remove().catch(() => {});
+        mySignalRef.onDisconnect().remove().catch(() => {});
+        await myPeerRef.set({ joinedAt: Date.now() });
+      },
 
-        // รับสัญญาณ Offer / Answer / ICE จากเพื่อน
-        mySignalRef.on("child_added", async (snap) => {
+      attachListeners() {
+        const base = `voice/${currentRoomCode}`;
+
+        // รับสัญญาณ Offer / Answer / ICE / Retry จากเพื่อน (ประมวลผลทีละข้อความตามลำดับ กันตีกันเอง)
+        this.signalsRef = db.ref(`${base}/signals/${myPlayerId}`);
+        this.signalsRef.on("child_added", (snap) => {
           const msg = snap.val();
           snap.ref.remove();
           if (!msg || !msg.from || msg.from === myPlayerId) return;
-          await this.handleSignal(msg.from, msg);
+          this.sigQueue = this.sigQueue
+            .then(() => this.handleSignal(msg.from, msg))
+            .catch(() => {});
         });
 
-        // ตรวจจับเพื่อนในห้องเสียง
-        this.peersRef = db.ref(`${basePath}/peers`);
-        this.peersRef.on("value", (snap) => {
-          const peers = snap.val() || {};
-          const peerIds = Object.keys(peers).filter(id => id !== myPlayerId);
-          this.updatePeerCount(peerIds.length + 1);
+        // ตรวจจับเพื่อนที่เข้า/ออกห้องเสียง
+        this.peersRef = db.ref(`${base}/peers`);
+        this.peersRef.on("value", (snap) => this.onPeersChanged(snap.val() || {}));
+      },
 
-          // ลบการเชื่อมต่อของเพื่อนที่ออกไปแล้ว
-          Object.keys(this.pcs).forEach(pid => {
-            if (!peers[pid]) this.closePeer(pid);
-          });
+      onPeersChanged(peers) {
+        if (!this.active) return;
+        this.knownPeers = peers;
 
-          // สร้างการเชื่อมต่อกับเพื่อนใหม่ (ให้คนที่มี ID มากกว่าเป็นฝ่ายส่ง Offer)
-          peerIds.forEach(pid => {
-            if (!this.pcs[pid] && myPlayerId > pid) {
-              this.createPeerConnection(pid, true);
+        // ชื่อเราหายจากห้องเสียง (เช่น เน็ตมือถือหลุดแล้วกลับมา) → ลงทะเบียนใหม่แล้วต่อเสียงกับทุกคนใหม่
+        if (!peers[myPlayerId]) {
+          if (!this.registering) {
+            this.registering = true;
+            this.registerPresence()
+              .then(() => { Object.keys(this.pcs).forEach(pid => this.refreshPeer(pid)); })
+              .catch(err => this.fail(err))
+              .finally(() => { this.registering = false; });
+          }
+          return;
+        }
+
+        // ลบการเชื่อมต่อของเพื่อนที่ออกไปแล้ว
+        Object.keys(this.pcs).forEach(pid => {
+          if (!peers[pid]) this.forgetPeer(pid);
+        });
+
+        Object.keys(peers).filter(id => id !== myPlayerId).forEach(pid => {
+          const pc = this.pcs[pid];
+          if (pc) {
+            // เพื่อนคนเดิมเข้าห้องเสียงรอบใหม่ (เช่น เปิดแอปใหม่) → การเชื่อมต่อเก่าใช้ไม่ได้แล้ว
+            const joinedAt = peers[pid].joinedAt;
+            if (pc._peerJoinedAt === undefined) pc._peerJoinedAt = joinedAt;
+            else if (joinedAt !== undefined && pc._peerJoinedAt !== joinedAt) {
+              this.retries[pid] = 0;
+              this.refreshPeer(pid);
             }
-          });
+          } else if (myPlayerId > pid) {
+            // ให้คนที่มี ID มากกว่าเป็นฝ่ายส่ง Offer
+            this.createPeerConnection(pid, true);
+          }
         });
+        this.refreshStatus();
+      },
+
+      setStatus(msg) {
+        document.getElementById("voice-status-text").textContent = msg;
+        announce(msg, true);
       },
 
       send(to, payload) {
@@ -752,8 +960,11 @@
 
       async createPeerConnection(peerId, isInitiator) {
         if (this.pcs[peerId]) return this.pcs[peerId];
-        const pc = new RTCPeerConnection(this.rtcConfig);
+        const pc = new RTCPeerConnection({ iceServers: this.iceServers || this.baseIce() });
         this.pcs[peerId] = pc;
+        // ฝั่งที่รับ Offer ปล่อยว่างไว้ก่อน แล้วค่อยจดค่าจากรายชื่อรอบถัดไป (กันเทียบกับข้อมูลเก่า)
+        pc._peerJoinedAt = (isInitiator && this.knownPeers[peerId]) ? this.knownPeers[peerId].joinedAt : undefined;
+
         pc.addEventListener("signalingstatechange", () => {
           if (pc.remoteDescription && pc._ice) {
             pc._ice.forEach(c => pc.addIceCandidate(new RTCIceCandidate(c)).catch(() => {}));
@@ -766,7 +977,7 @@
         }
 
         pc.onicecandidate = (e) => {
-          if (e.candidate && currentRoomCode) {
+          if (e.candidate && currentRoomCode && this.pcs[peerId] === pc) {
             this.send(peerId, {
               from: myPlayerId,
               type: "ice",
@@ -776,6 +987,7 @@
         };
 
         pc.ontrack = (e) => {
+          if (this.pcs[peerId] !== pc) return;
           let audioEl = document.getElementById("voice-audio-" + peerId);
           if (!audioEl) {
             audioEl = document.createElement("audio");
@@ -785,33 +997,96 @@
             document.getElementById("voice-audio-container").appendChild(audioEl);
           }
           audioEl.srcObject = e.streams[0] || new MediaStream([e.track]);
-          audioEl.play().catch(() => announce("เบราว์เซอร์บล็อกการเล่นเสียง กรุณากดปุ่มใดก็ได้ในหน้าเว็บหนึ่งครั้ง", true));
+          audioEl.play().catch(() => {
+            this.audioBlocked = true;
+            this.updateUI();
+            announce("เบราว์เซอร์บล็อกการเล่นเสียงของเพื่อน กรุณากดปุ่ม แตะเพื่อเปิดเสียงเพื่อน", true);
+          });
         };
 
-        pc.onconnectionstatechange = () => {
-          if (pc.connectionState === "connected") announce("เชื่อมต่อเสียงกับเพื่อนสำเร็จ");
-          if (pc.connectionState === "failed") announce("เชื่อมต่อเสียงกับเพื่อนไม่สำเร็จ อาจอยู่คนละเครือข่ายและต้องใช้ TURN server", true);
-          if (["failed", "closed"].includes(pc.connectionState)) {
-            this.closePeer(peerId);
-          }
-        };
+        pc.onconnectionstatechange = () => this.onPeerState(peerId, pc);
+
+        // ถ้าผ่านไป 15 วินาทียังต่อไม่ติด ให้ถือว่าล้มเหลวแล้วลองใหม่
+        pc._watch = setTimeout(() => {
+          if (this.pcs[peerId] === pc && pc.connectionState !== "connected") this.handleFailure(peerId, pc);
+        }, 15000);
 
         if (isInitiator) {
-          const offer = await pc.createOffer();
-          await pc.setLocalDescription(offer);
-          this.send(peerId, {
-            from: myPlayerId,
-            type: "offer",
-            sdp: pc.localDescription.toJSON()
-          });
+          try {
+            const offer = await pc.createOffer();
+            await pc.setLocalDescription(offer);
+            this.send(peerId, {
+              from: myPlayerId,
+              type: "offer",
+              sdp: pc.localDescription.toJSON()
+            });
+          } catch (err) {
+            console.log("สร้าง Offer ไม่สำเร็จ:", err);
+            this.handleFailure(peerId, pc);
+          }
         }
 
         return pc;
       },
 
+      onPeerState(peerId, pc) {
+        if (this.pcs[peerId] !== pc) return;
+        const st = pc.connectionState;
+        clearTimeout(pc._disc);
+        if (st === "connected") {
+          clearTimeout(pc._watch);
+          this.retries[peerId] = 0;
+          announce(`เชื่อมต่อเสียงกับ ${nameOf(peerId)} สำเร็จ`);
+        } else if (st === "disconnected") {
+          // อาจกลับมาเองได้ รอสักครู่ก่อนค่อยลองใหม่
+          pc._disc = setTimeout(() => {
+            if (this.pcs[peerId] === pc && pc.connectionState !== "connected") this.handleFailure(peerId, pc);
+          }, 6000);
+        } else if (st === "failed") {
+          this.handleFailure(peerId, pc);
+        }
+        this.refreshStatus();
+      },
+
+      handleFailure(peerId, pc) {
+        if (!this.active || this.pcs[peerId] !== pc) return;
+        const n = (this.retries[peerId] || 0) + 1;
+        this.retries[peerId] = n;
+        clearTimeout(this.retryTimers[peerId]);
+        if (n > 3) {
+          const hint = this.hasTurn
+            ? ""
+            : " (น่าจะอยู่คนละเครือข่ายหรือใช้เน็ตมือถือ ต้องตั้งค่า TURN server ของเกมก่อน)";
+          this.setStatus(`ต่อเสียงกับ ${nameOf(peerId)} ไม่สำเร็จ${hint}`);
+          return;
+        }
+        this.refreshStatus();
+        this.retryTimers[peerId] = setTimeout(() => {
+          if (this.active && this.knownPeers[peerId]) this.resetPeer(peerId);
+        }, 1200 * n);
+      },
+
+      // ปิดการเชื่อมต่อเดิม แล้วให้ฝั่งที่มี ID มากกว่าเริ่มส่ง Offer ใหม่ (ฝั่งตรงข้ามจะรอรับ Offer)
+      refreshPeer(peerId) {
+        this.closePeer(peerId);
+        if (this.active && this.knownPeers[peerId] && myPlayerId > peerId) {
+          this.createPeerConnection(peerId, true);
+        }
+      },
+
+      // ใช้ตอนต่อไม่ติด: ถ้าเราเป็นฝั่งรับ ให้ส่งสัญญาณขอให้อีกฝั่งเริ่มต่อใหม่
+      resetPeer(peerId) {
+        this.closePeer(peerId);
+        if (!this.active || !this.knownPeers[peerId]) return;
+        if (myPlayerId > peerId) this.createPeerConnection(peerId, true);
+        else this.send(peerId, { from: myPlayerId, type: "retry" });
+      },
+
       async handleSignal(fromId, msg) {
         try {
           if (msg.type === "offer") {
+            // Offer ใหม่ = เริ่มต่อใหม่เสมอ ทิ้งการเชื่อมต่อเก่า (ถ้ามี)
+            if (this.pcs[fromId]) this.closePeer(fromId);
             const pc = await this.createPeerConnection(fromId, false);
             await pc.setRemoteDescription(new RTCSessionDescription(msg.sdp));
             const answer = await pc.createAnswer();
@@ -832,6 +1107,9 @@
               if (pc.remoteDescription) await pc.addIceCandidate(new RTCIceCandidate(msg.candidate));
               else (pc._ice = pc._ice || []).push(msg.candidate);
             }
+          } else if (msg.type === "retry") {
+            // เพื่อนที่เป็นฝ่ายรับขอให้เราส่ง Offer ใหม่
+            if (myPlayerId > fromId) this.resetPeer(fromId);
           }
         } catch (err) {
           console.log("WebRTC signal error:", err);
@@ -839,12 +1117,72 @@
       },
 
       closePeer(peerId) {
-        if (this.pcs[peerId]) {
-          this.pcs[peerId].close();
+        const pc = this.pcs[peerId];
+        if (pc) {
+          clearTimeout(pc._watch);
+          clearTimeout(pc._disc);
+          pc.onicecandidate = null;
+          pc.ontrack = null;
+          pc.onconnectionstatechange = null;
+          try { pc.close(); } catch (e) {}
           delete this.pcs[peerId];
         }
         const audioEl = document.getElementById("voice-audio-" + peerId);
         if (audioEl) audioEl.remove();
+      },
+
+      // เพื่อนออกจากห้องเสียงแล้ว: ปิดการเชื่อมต่อและล้างค่าที่เกี่ยวข้อง
+      forgetPeer(peerId) {
+        clearTimeout(this.retryTimers[peerId]);
+        delete this.retryTimers[peerId];
+        delete this.retries[peerId];
+        this.closePeer(peerId);
+      },
+
+      // ---------- ดูแลไมค์ (โดยเฉพาะบนมือถือที่ระบบอาจตัดไมค์ตอนสลับแอป) ----------
+      watchMic() {
+        const track = this.localStream && this.localStream.getAudioTracks()[0];
+        if (!track) return;
+        track.onended = () => { if (this.active) this.recoverMic(); };
+      },
+
+      async recoverMic() {
+        if (!this.active || this.recovering) return;
+        this.recovering = true;
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia(this.micConstraints);
+          const newTrack = stream.getAudioTracks()[0];
+          newTrack.enabled = !this.muted;
+          Object.values(this.pcs).forEach(pc => {
+            pc.getSenders().filter(s => s.track && s.track.kind === "audio")
+              .forEach(s => s.replaceTrack(newTrack).catch(() => {}));
+          });
+          if (this.localStream) this.localStream.getTracks().forEach(t => { t.onended = null; t.stop(); });
+          this.localStream = stream;
+          this.watchMic();
+          announce("เชื่อมต่อไมโครโฟนกลับมาแล้ว");
+        } catch (err) {
+          SoundFX.error();
+          this.setStatus("ไมโครโฟนหยุดทำงานและเปิดกลับมาไม่ได้ กรุณากดวางสายเสียง แล้วกดเข้าร่วมคุยเสียงใหม่");
+        } finally {
+          this.recovering = false;
+        }
+      },
+
+      // เรียกเมื่อกลับมาเปิดหน้าเว็บ/แอปอีกครั้ง
+      onForeground() {
+        if (!this.active) return;
+        const track = this.localStream && this.localStream.getAudioTracks()[0];
+        if (!track || track.readyState !== "live") this.recoverMic();
+        this.resumeAudio();
+      },
+
+      resumeAudio() {
+        if (!this.active) return;
+        const els = Array.from(document.querySelectorAll("#voice-audio-container audio"));
+        let blocked = false;
+        Promise.all(els.map(a => (a.paused ? a.play() : Promise.resolve()).catch(() => { blocked = true; })))
+          .then(() => { this.audioBlocked = blocked; this.updateUI(); });
       },
 
       toggleMute() {
@@ -856,6 +1194,16 @@
         else SoundFX.micOn();
       },
 
+      // ล้างค่าฝั่งเครื่องเราอย่างเดียว (ใช้ตอนเข้าห้องเสียงไม่สำเร็จ)
+      teardownLocal() {
+        this.active = false;
+        if (this.localStream) {
+          this.localStream.getTracks().forEach(t => { t.onended = null; t.stop(); });
+          this.localStream = null;
+        }
+        this.updateUI();
+      },
+
       leave() {
         if (!this.active) return;
         this.active = false;
@@ -865,39 +1213,60 @@
         if (this.signalsRef) { this.signalsRef.off(); this.signalsRef = null; }
 
         if (currentRoomCode) {
-          db.ref(`voice/${currentRoomCode}/peers/${myPlayerId}`).remove();
-          db.ref(`voice/${currentRoomCode}/signals/${myPlayerId}`).remove();
+          db.ref(`voice/${currentRoomCode}/peers/${myPlayerId}`).remove().catch(() => {});
+          db.ref(`voice/${currentRoomCode}/signals/${myPlayerId}`).remove().catch(() => {});
         }
 
+        Object.keys(this.retryTimers).forEach(k => clearTimeout(this.retryTimers[k]));
+        this.retryTimers = {};
+        this.retries = {};
+        this.knownPeers = {};
         Object.keys(this.pcs).forEach(pid => this.closePeer(pid));
         if (this.localStream) {
-          this.localStream.getTracks().forEach(t => t.stop());
+          this.localStream.getTracks().forEach(t => { t.onended = null; t.stop(); });
           this.localStream = null;
         }
+        this.audioBlocked = false;
         this.updateUI();
+        writeSession({ voice: false });
         SoundFX.micOff();
         announce("ออกจากห้องคุยเสียงแล้ว");
       },
 
-      updatePeerCount(count) {
+      // ข้อความสถานะ: นับเฉพาะคนที่ต่อเสียงถึงกันได้จริง ไม่ใช่แค่คนที่อยู่ในห้อง
+      statusText() {
+        const mic = this.muted ? "ปิดไมค์อยู่" : "เปิดไมค์อยู่";
+        const ids = Object.keys(this.knownPeers).filter(id => id !== myPlayerId);
+        if (ids.length === 0) return `อยู่ในห้องคุยเสียงแล้ว ยังไม่มีเพื่อนคนอื่นในสาย - ${mic}`;
+        const ok = ids.filter(id => this.pcs[id] && this.pcs[id].connectionState === "connected");
+        const dead = ids.filter(id => (this.retries[id] || 0) > 3);
+        const wait = ids.filter(id => !ok.includes(id) && !dead.includes(id));
+        let t = `ได้ยินกันแล้ว ${ok.length} จาก ${ids.length} คน`;
+        if (wait.length) t += ` (กำลังเชื่อมต่อกับ ${wait.map(id => nameOf(id)).join(", ")})`;
+        if (dead.length) t += ` (ต่อไม่ได้กับ ${dead.map(id => nameOf(id)).join(", ")})`;
+        return `${t} - ${mic}`;
+      },
+
+      refreshStatus() {
         if (!this.active) return;
-        const micState = this.muted ? "ปิดไมค์อยู่" : "เปิดไมค์อยู่";
-        document.getElementById("voice-status-text").textContent = `เชื่อมต่อแล้ว (${count} คนในสาย) - ${micState}`;
+        document.getElementById("voice-status-text").textContent = this.statusText();
       },
 
       updateUI() {
         const btnJoin = document.getElementById("btn-voice-join");
         const btnMute = document.getElementById("btn-voice-mute");
         const btnLeave = document.getElementById("btn-voice-leave");
+        const btnUnblock = document.getElementById("btn-voice-unblock");
 
         btnJoin.classList.toggle("hidden", this.active);
         btnMute.classList.toggle("hidden", !this.active);
         btnLeave.classList.toggle("hidden", !this.active);
+        btnUnblock.classList.toggle("hidden", !(this.active && this.audioBlocked));
 
         if (this.active) {
           btnMute.textContent = this.muted ? "ไมค์: ปิดอยู่ (Alt+M)" : "ไมค์: เปิดอยู่ (Alt+M)";
           btnMute.className = this.muted ? "danger" : "success";
-          this.updatePeerCount(Object.keys(this.pcs).length + 1);
+          this.refreshStatus();
         } else {
           document.getElementById("voice-status-text").textContent = "ยังไม่ได้เชื่อมต่อ (แนะนำให้ใส่หูฟังหากใช้โปรแกรมอ่านจอภาพ)";
         }
@@ -907,6 +1276,14 @@
     document.getElementById("btn-voice-join").addEventListener("click", () => VoiceChat.join());
     document.getElementById("btn-voice-mute").addEventListener("click", () => VoiceChat.toggleMute());
     document.getElementById("btn-voice-leave").addEventListener("click", () => VoiceChat.leave());
+    document.getElementById("btn-voice-unblock").addEventListener("click", () => VoiceChat.resumeAudio());
+
+    // ถ้าเบราว์เซอร์บล็อกเสียงเพื่อน แตะหรือกดปุ่มตรงไหนก็ได้หนึ่งครั้งเพื่อเปิดเสียง
+    ["pointerdown", "keydown", "touchend"].forEach(evt => {
+      document.addEventListener(evt, () => {
+        if (VoiceChat.active && VoiceChat.audioBlocked) VoiceChat.resumeAudio();
+      }, { passive: true });
+    });
 
     // คีย์ลัด Alt + M สำหรับสลับเปิด-ปิดไมค์จากทุกหน้าจอ
     document.addEventListener("keydown", (e) => {
@@ -1062,6 +1439,30 @@
       }
     });
 
+    // ขอรับที่นั่งเดิมคืน: ย้ายข้อมูลทั้งหมดของผู้เล่นเดิม (มือ เงิน ถุง สินค้า ลำดับผู้ตรวจการ ฯลฯ) มาที่รหัสผู้เล่นใหม่ของเครื่องนี้
+    async function reclaimSeat(code, oldId, name) {
+      let failMsg = "ไม่สามารถกลับเข้าที่นั่งเดิมได้ กรุณาลองใหม่อีกครั้ง";
+      try {
+        const res = await db.ref("rooms/" + code).transaction(r => {
+          if (!r) return r; // ยังไม่มีข้อมูลในเครื่อง ให้ไปถามเซิร์ฟเวอร์ก่อน
+          if (!r.players || !r.players[oldId]) { failMsg = "ไม่พบที่นั่งเดิมของคุณในห้องนี้แล้ว"; return; }
+          if (r.players[oldId].online !== false) {
+            failMsg = `ผู้เล่นชื่อ "${name}" ยังออนไลน์อยู่ ถ้าเพิ่งปิดแอปให้รอสักครู่แล้วลองใหม่`;
+            return;
+          }
+          const next = JSON.parse(JSON.stringify(r).split(`"${oldId}"`).join(`"${myPlayerId}"`));
+          next.players[myPlayerId].online = true;
+          delete next.players[myPlayerId].left;
+          next.logs = [...(next.logs || []), `${name} กลับเข้าห้องแล้ว`];
+          return next;
+        }, undefined, false);
+        return { ok: !!res.committed, msg: failMsg };
+      } catch (err) {
+        console.log("reclaim error:", err);
+        return { ok: false, msg: failMsg };
+      }
+    }
+
     document.getElementById("btn-join-room").addEventListener("click", async () => {
       SoundFX.init();
       const name = cleanName(document.getElementById("player-name").value);
@@ -1091,11 +1492,31 @@
         }
         const roomData = snapshot.val();
         const existingPlayers = roomData.players || {};
-        const isAlreadyIn = !!existingPlayers[myPlayerId];
+        let isAlreadyIn = !!existingPlayers[myPlayerId];
+
+        // เคยเล่นในห้องนี้ แต่รหัสผู้เล่นในเครื่องเปลี่ยนไป (เช่น เปิดจากเบราว์เซอร์คนละตัวกับแอปที่ติดตั้งไว้)
+        // → ขอรับที่นั่งเดิมคืนด้วยชื่อเดิม โดยต้องเป็นผู้เล่นที่ออฟไลน์อยู่เท่านั้น
+        if (!isAlreadyIn) {
+          const lower = name.toLowerCase();
+          const match = Object.entries(existingPlayers).find(([pid, p]) => p && p.name && cleanName(p.name).toLowerCase() === lower);
+          if (match && match[1].online === false) {
+            const rc = await reclaimSeat(code, match[0], name);
+            if (!rc.ok) {
+              SoundFX.error();
+              errEl.textContent = rc.msg;
+              return;
+            }
+            isAlreadyIn = true;
+          } else if (match && roomData.status !== "waiting") {
+            SoundFX.error();
+            errEl.textContent = `ผู้เล่นชื่อ "${name}" ยังออนไลน์อยู่ในห้องนี้ ถ้าเพิ่งปิดแอปให้รอสักครู่แล้วกดเข้าร่วมอีกครั้ง`;
+            return;
+          }
+        }
 
         if (roomData.status !== "waiting" && !isAlreadyIn) {
           SoundFX.error();
-          errEl.textContent = "ห้องนี้เริ่มเล่นเกมไปแล้ว ไม่สามารถเข้าร่วมได้";
+          errEl.textContent = "ห้องนี้เริ่มเล่นเกมไปแล้ว หากคุณเคยเล่นในห้องนี้ ให้กรอกชื่อเดิมให้ตรงกับที่ใช้ตอนแรก แล้วกดเข้าร่วมอีกครั้ง";
           return;
         }
 
@@ -1125,7 +1546,7 @@
 
         SoundFX.join();
         enterRoom(code);
-        announce(`เข้าร่วมห้องรหัส ${code} สำเร็จแล้ว`);
+        announce(isAlreadyIn ? `กลับเข้าห้องรหัส ${code} แล้ว เล่นต่อได้เลย` : `เข้าร่วมห้องรหัส ${code} สำเร็จแล้ว`);
       } catch (err) {
         SoundFX.error();
         errEl.textContent = "เกิดข้อผิดพลาดในการเข้าร่วมห้อง";
@@ -1154,16 +1575,29 @@
       });
     });
 
-    async function leaveRoom() {
+    // opts.skipDb  = ห้องถูกปิด/ถูกย้ายออกแล้ว ไม่ต้องเขียนอะไรกลับไปที่ฐานข้อมูล (กันสร้างห้องผีขึ้นมาใหม่)
+    // opts.forget  = ลืมรหัสห้องที่จำไว้ด้วย
+    async function leaveRoom(opts) {
+      opts = (opts && typeof opts === "object" && !(opts instanceof Event)) ? opts : {};
+      const skipDb = !!opts.skipDb;
       const code = currentRoomCode;
       const hadPlayer = !!(currentRoomData && currentRoomData.players && currentRoomData.players[myPlayerId]);
       const myName = hadPlayer ? currentRoomData.players[myPlayerId].name : "";
       VoiceChat.leave();
-      if (roomRef) roomRef.off();
+      if (roomRef) { roomRef.off(); roomRef = null; }
+      if (code) {
+        try { db.ref(`rooms/${code}/players/${myPlayerId}/online`).onDisconnect().cancel(); } catch (e) {}
+      }
       currentRoomCode = null;
       currentRoomData = null;
       lastActionRenderKey = "";
       lastStatus = null;
+      prevPresence = null;
+      iWasInRoom = false;
+      logSeenCount = null;
+      lastSavedSession = "";
+      endSession(!!opts.forget);
+      if (opts.forget) document.getElementById("room-code-input").value = "";
       document.getElementById("voice-bar").classList.add("hidden");
 
       if (window.location.protocol !== "file:") {
@@ -1174,24 +1608,29 @@
       document.getElementById("invite-banner").classList.add("hidden");
 
       showView("view-home", "heading-home");
-      announce("ออกจากห้องเรียบร้อยแล้ว");
+      prefillHome();
+      announce(opts.message || "ออกจากห้องเรียบร้อยแล้ว", !!opts.urgent);
 
-      if (code && hadPlayer) {
+      if (!skipDb && code && hadPlayer) {
         try {
-          const presRef = db.ref(`rooms/${code}/players/${myPlayerId}/online`);
-          presRef.onDisconnect().cancel();
-          let removed = false;
-          await db.ref("rooms/" + code).transaction(r => {
-            if (!r || r.status !== "waiting" || !r.players || !r.players[myPlayerId]) return;
-            delete r.players[myPlayerId];
-            const ids = Object.keys(r.players);
-            if (ids.length === 0) return null;
-            if (r.hostId === myPlayerId) r.hostId = ids[0];
-            r.logs = [...(r.logs || []), `${myName} ออกจากห้องแล้ว`];
-            removed = true;
+          const res = await db.ref("rooms/" + code).transaction(r => {
+            if (!r) return r; // ยังไม่มีข้อมูลในเครื่อง ให้ไปถามเซิร์ฟเวอร์ก่อน ห้ามยกเลิกตรงนี้
+            if (!r.players || !r.players[myPlayerId]) return;
+            if (r.status === "waiting") {
+              // ยังไม่เริ่มเกม: เอาชื่อออกจากห้องเลย
+              delete r.players[myPlayerId];
+              const ids = Object.keys(r.players);
+              if (ids.length === 0) return null;
+              if (r.hostId === myPlayerId) r.hostId = ids.find(id => r.players[id].online !== false) || ids[0];
+              r.logs = [...(r.logs || []), `${myName} ออกจากห้องแล้ว`];
+            } else {
+              // เริ่มเกมแล้ว: เก็บที่นั่งไว้ให้ ใส่รหัสห้องเดิมแล้วกลับมาเล่นต่อได้
+              r.players[myPlayerId].online = false;
+              r.players[myPlayerId].left = true;
+            }
             return r;
           }, undefined, false);
-          if (!removed) await presRef.set(false);
+          if (res.committed && !res.snapshot.exists()) db.ref("voice/" + code).remove().catch(() => {});
         } catch (e) { console.log("leave error:", e); }
       }
     }
@@ -1204,7 +1643,7 @@
       const snapshot = await db.ref("rooms/" + currentRoomCode).once("value");
       const room = snapshot.val();
       if (!room || room.hostId !== myPlayerId) return;
-      const playerIds = Object.keys(room.players || {});
+      const playerIds = Object.keys(room.players || {}).filter(id => room.players[id] && room.players[id].name);
 
       if (playerIds.length < 2) {
         SoundFX.error();
@@ -1268,8 +1707,14 @@
       lastPlayerCount = 0;
       lastLogCount = 0;
       lastActionRenderKey = "";
+      prevPresence = null;
+      iWasInRoom = false;
+      logSeenCount = null;
+      lastSavedSession = "";
+      document.getElementById("log-details").open = false;
       document.getElementById("display-room-code").textContent = code;
       document.getElementById("voice-bar").classList.remove("hidden");
+      document.getElementById("invite-banner").classList.add("hidden");
       showView("view-lobby", "heading-lobby");
 
       if (roomRef) roomRef.off();
@@ -1278,17 +1723,45 @@
       roomRef.on("value", (snapshot) => {
         const room = snapshot.val();
         if (!room) {
-          announce("ห้องนี้ถูกปิดแล้ว", true);
-          leaveRoom();
+          leaveRoom({ skipDb: true, forget: true, urgent: true, message: "ห้องนี้ถูกปิดแล้ว" });
           return;
         }
-        Object.values(room.players || {}).forEach(p => { if (p) p.name = cleanName(p.name); });
+
+        // กรองข้อมูลผู้เล่นที่ไม่สมบูรณ์ออก (กันข้อมูลตกค้างทำให้เกมรวน)
+        const pl = room.players || {};
+        Object.keys(pl).forEach(pid => {
+          if (!pl[pid] || !pl[pid].name) delete pl[pid];
+          else pl[pid].name = cleanName(pl[pid].name);
+        });
+        room.players = pl;
+
+        if (pl[myPlayerId]) {
+          iWasInRoom = true;
+        } else if (iWasInRoom) {
+          // ที่นั่งของเรามีคนรับไปแล้ว (เช่น เข้าห้องด้วยชื่อเดิมจากอีกเครื่อง)
+          leaveRoom({ skipDb: true, urgent: true, message: "คุณไม่ได้อยู่ในห้องนี้แล้ว อาจเพราะมีการเข้าห้องด้วยชื่อเดิมจากอีกเครื่อง" });
+          return;
+        }
         currentRoomData = room;
+
+        if (pl[myPlayerId]) {
+          const key = code + "|" + pl[myPlayerId].name;
+          if (key !== lastSavedSession) {
+            lastSavedSession = key;
+            writeSession({ code, name: pl[myPlayerId].name, active: true });
+          }
+        }
+
         if (room.status !== lastStatus) {
-          if (room.status === "playing") lastLogCount = 0;
+          if (room.status === "playing") {
+            lastLogCount = 0;
+            if (lastStatus === "waiting" || lastStatus === "finished") logSeenCount = 0;
+          }
           lastStatus = room.status;
         }
-        if (room.players && room.players[myPlayerId] && room.players[myPlayerId].online !== true) markOnline();
+        if (pl[myPlayerId] && pl[myPlayerId].online !== true) markOnline();
+
+        trackPresence(room);
 
         if (room.lastSoundEvent && room.lastSoundEvent.id !== lastSoundId) {
           lastSoundId = room.lastSoundEvent.id;
@@ -1299,18 +1772,50 @@
         if (room.status === "waiting") renderLobby(room);
         else if (room.status === "playing") renderGame(room);
         else if (room.status === "finished") renderGameOver(room);
+
+        const isHost = room.hostId === myPlayerId;
+        document.querySelectorAll(".btn-close-room").forEach(b => b.classList.toggle("hidden", !isHost));
       });
     }
 
     function markOnline() {
-      if (!currentRoomCode) return;
-      const ref = db.ref(`rooms/${currentRoomCode}/players/${myPlayerId}/online`);
-      ref.onDisconnect().set(false);
-      ref.set(true);
+      // เขียนเฉพาะเมื่อเรายังมีชื่ออยู่ในห้องจริง (กันสร้างข้อมูลผู้เล่นผีขึ้นมา)
+      if (!currentRoomCode || !currentRoomData || !currentRoomData.players || !currentRoomData.players[myPlayerId]) return;
+      const pref = db.ref(`rooms/${currentRoomCode}/players/${myPlayerId}`);
+      pref.child("online").onDisconnect().set(false);
+      pref.update({ online: true, left: null });
     }
     db.ref(".info/connected").on("value", (s) => {
-      if (s.val() && currentRoomData && currentRoomData.players && currentRoomData.players[myPlayerId]) markOnline();
+      if (s.val()) markOnline();
     });
+
+    // หัวหน้าห้องปิดห้อง: ลบห้องทิ้ง ผู้เล่นทุกคนจะถูกพากลับหน้าแรกอัตโนมัติ
+    async function closeRoom() {
+      if (!currentRoomCode || !currentRoomData || currentRoomData.hostId !== myPlayerId) return;
+      const ok = window.confirm("ปิดห้องนี้ใช่ไหม? ผู้เล่นทุกคนจะถูกพาออกจากห้อง และกลับมาเล่นต่อในห้องนี้ไม่ได้อีก");
+      if (!ok) return;
+      const code = currentRoomCode;
+      try {
+        await db.ref("rooms/" + code).remove();
+        db.ref("voice/" + code).remove().catch(() => {});
+      } catch (err) {
+        SoundFX.error();
+        announce("ปิดห้องไม่สำเร็จ กรุณาตรวจสอบอินเทอร์เน็ตแล้วลองใหม่อีกครั้ง", true);
+      }
+    }
+    document.querySelectorAll(".btn-close-room").forEach(b => b.addEventListener("click", closeRoom));
+
+    // กลับมาเปิดแอปจากเบื้องหลัง: ต่อฐานข้อมูลใหม่ ประกาศว่าออนไลน์ และกู้ไมค์/เสียงคืน
+    function wakeConnection() {
+      try { db.goOnline(); } catch (e) {}
+      markOnline();
+      VoiceChat.onForeground();
+    }
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") wakeConnection();
+    });
+    window.addEventListener("pageshow", (e) => { if (e.persisted) wakeConnection(); });
+    window.addEventListener("online", wakeConnection);
 
     function renderLobby(room) {
       const playersObj = room.players || {};
@@ -1322,7 +1827,8 @@
         const li = document.createElement("li");
         const isHostText = (pid === room.hostId) ? " (หัวหน้าห้อง)" : "";
         const isMeText = (pid === myPlayerId) ? " [คุณ]" : "";
-        li.textContent = `${p.name}${isHostText}${isMeText}`;
+        const offlineText = (p.online === false) ? " (ออฟไลน์)" : "";
+        li.textContent = `${p.name}${isHostText}${isMeText}${offlineText}`;
         listEl.appendChild(li);
       });
 
@@ -1335,11 +1841,7 @@
         modeHint.textContent = `ขณะนี้มี ${playerList.length} คน — เล่นแบบผู้ตรวจการ 1 คน (หากครบ 6 คนขึ้นไปจะสลับเป็น 2 ผู้ตรวจการอัตโนมัติ)`;
       }
 
-      if (lastPlayerCount > 0 && playerList.length > lastPlayerCount) {
-        const newest = playerList[playerList.length - 1][1].name;
-        SoundFX.join();
-        announce(`${newest} เข้าร่วมห้องแล้ว ขณะนี้มีผู้เล่น ${playerList.length} คน`);
-      }
+      // เสียงและการแจ้งเตือนคนเข้า/ออก/หลุด ย้ายไปทำใน trackPresence แล้ว (ทำงานทุกหน้าจอ ไม่เฉพาะหน้ารอผู้เล่น)
       lastPlayerCount = playerList.length;
 
       const isHost = (room.hostId === myPlayerId);
@@ -1406,11 +1908,30 @@
         logListEl.appendChild(li);
       });
 
+      // เมนูบันทึกเหตุการณ์พับเก็บไว้ก่อน: ที่หัวข้อจะบอกจำนวน และจำนวนที่ยังไม่ได้เปิดอ่าน
+      const logOpen = document.getElementById("log-details").open;
+      if (logSeenCount === null || logOpen) logSeenCount = logs.length;
+      else if (logSeenCount > logs.length) logSeenCount = 0; // เริ่มเกมใหม่ บันทึกถูกล้างแล้ว
+      updateLogSummary(logs.length);
+
       if (logs.length > lastLogCount) {
         announce(logs.slice(lastLogCount > 0 ? lastLogCount : logs.length - 1).join(" ... "));
         lastLogCount = logs.length;
       }
     }
+
+    function updateLogSummary(total) {
+      const unread = Math.max(0, total - (logSeenCount || 0));
+      document.getElementById("log-summary-text").textContent = total === 0
+        ? "บันทึกเหตุการณ์ (ยังไม่มี)"
+        : `บันทึกเหตุการณ์ ${total} รายการ` + (unread > 0 ? ` (ใหม่ ${unread})` : "");
+      document.getElementById("log-summary").classList.toggle("has-new", unread > 0);
+    }
+    document.getElementById("log-details").addEventListener("toggle", () => {
+      const logs = (currentRoomData && currentRoomData.logs) || [];
+      if (document.getElementById("log-details").open) logSeenCount = logs.length;
+      updateLogSummary(logs.length);
+    });
 
     function formatBribeSummary(bribeObj, merchant) {
       if (!bribeObj) return "ไม่มีสินบน";
@@ -2427,6 +2948,60 @@
       }
     }
     checkInviteLink();
+
+    function showHomeNotice(text) {
+      const banner = document.getElementById("invite-banner");
+      banner.textContent = text;
+      banner.classList.remove("hidden");
+    }
+
+    // เติมชื่อและรหัสห้องล่าสุดให้ในหน้าแรก (ไม่ทับค่าที่มาจากลิงก์เชิญ)
+    function prefillHome() {
+      const s = readSession();
+      if (!s) return;
+      const nameInput = document.getElementById("player-name");
+      const codeInput = document.getElementById("room-code-input");
+      if (s.name && !nameInput.value) nameInput.value = s.name;
+      if (s.code && !codeInput.value) codeInput.value = s.code;
+    }
+
+    // เปิดแอปใหม่แล้วพบว่ายังมีห้องที่เล่นค้างอยู่ → พากลับเข้าห้องเดิมให้อัตโนมัติ
+    async function tryResumeSession() {
+      const s = readSession();
+      if (!s || !s.active || !s.code || currentRoomCode) return;
+      const inviteCode = (new URLSearchParams(window.location.search).get("room") || "").trim().toUpperCase();
+      if (inviteCode && inviteCode !== s.code) return; // เปิดจากลิงก์เชิญห้องอื่น ให้ทำตามลิงก์
+      showHomeNotice(`กำลังกลับเข้าห้องรหัส ${s.code} ...`);
+      try {
+        const snap = await db.ref("rooms/" + s.code).once("value");
+        if (currentRoomCode) return;
+        const room = snap.val();
+        if (!room) {
+          endSession(true);
+          const msg = `ห้องรหัส ${s.code} ถูกหัวหน้าห้องปิดไปแล้ว สร้างห้องใหม่หรือเข้าร่วมห้องอื่นได้เลยครับ`;
+          showHomeNotice(msg);
+          announce(msg, true);
+        } else if (room.players && room.players[myPlayerId]) {
+          enterRoom(s.code);
+          announce(`กลับเข้าห้องรหัส ${s.code} ให้อัตโนมัติแล้ว เล่นต่อได้เลย` +
+            (s.voice ? " ก่อนหน้านี้คุณอยู่ในสายคุยเสียง กดปุ่มเข้าร่วมคุยเสียงเพื่อกลับเข้าสาย" : ""), true);
+          if (s.voice) {
+            document.getElementById("voice-status-text").textContent =
+              "ก่อนหน้านี้คุณอยู่ในสายคุยเสียง กดปุ่มเข้าร่วมคุยเสียงเพื่อกลับเข้าสายอีกครั้ง";
+            writeSession({ voice: false }); // แจ้งแค่ครั้งเดียว
+          }
+        } else {
+          const msg = `พบห้องรหัส ${s.code} ที่คุณเคยเล่น แต่เครื่องนี้ยังไม่ได้อยู่ในห้อง กรอกชื่อเดิมของคุณแล้วกดเข้าร่วมห้อง ระบบจะคืนที่นั่งเดิมให้`;
+          showHomeNotice(msg);
+          announce(msg, true);
+        }
+      } catch (err) {
+        showHomeNotice(`เชื่อมต่อไม่สำเร็จ กรุณากดเข้าร่วมห้องรหัส ${s.code} อีกครั้ง`);
+      }
+    }
+
+    prefillHome();
+    tryResumeSession();
 
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => {
