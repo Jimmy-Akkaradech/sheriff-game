@@ -1,6 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="ไอคอนเกมผู้ตรวจการแห่งน็อตติ้งแฮม">
-  <rect width="512" height="512" rx="96" fill="#1d4ed8" />
-  <path d="M256 76 L404 132 V256 C404 352 340 422 256 448 C172 422 108 352 108 256 V132 Z" fill="#ffffff" />
-  <path d="M256 116 L368 158 V254 C368 328 320 384 256 406 C192 384 144 328 144 254 V158 Z" fill="#1e40af" />
-  <circle cx="256" cy="248" r="56" fill="#f59e0b" />
-</svg>

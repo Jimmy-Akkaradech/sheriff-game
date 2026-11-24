@@ -488,6 +488,13 @@
         <p id="action-error" class="error-msg" role="alert"></p>
       </section>
 
+      <!-- เครื่องมือหัวหน้าห้อง: แสดงเมื่อมีผู้เล่นออฟไลน์ที่ทำให้เกมค้าง -->
+      <section id="host-assist" class="card-panel hidden" aria-labelledby="host-assist-heading">
+        <h3 id="host-assist-heading">มีผู้เล่นออฟไลน์ทำให้เกมเดินต่อไม่ได้</h3>
+        <p id="host-assist-text"></p>
+        <button type="button" id="btn-host-assist" class="secondary">เล่นต่อแทนผู้เล่นที่ออฟไลน์</button>
+      </section>
+
       <!-- สถานะผู้เล่นและแผงสินค้า -->
       <section class="card-panel" aria-labelledby="status-heading">
         <h3 id="status-heading">สถานะผู้เล่นและแผงสินค้า</h3>
@@ -582,7 +589,16 @@
     //   "https://openrelayproject.metered.ca/api/v1/turn/credentials?apiKey=คีย์ของคุณ"
     // หรือจะกำหนดเองใน TURN_SERVERS ก็ได้ เช่น { urls: "turn:host:3478", username: "...", credential: "..." }
     const TURN_CREDENTIALS_URL = "";
-    const TURN_SERVERS = [];
+    // TURN ของ metered.ca (Open Relay) - รหัสนี้ฝังในหน้าเว็บ ใครเปิดดูซอร์สก็เห็นได้ ถ้าโควตาหมดเร็วผิดปกติให้สร้างรหัสใหม่ที่ Dashboard
+    const TURN_USERNAME = "ca31fba0ec29dea3a317a358";
+    const TURN_PASSWORD = "sz26sJUuy34MQQM2";
+    const TURN_SERVERS = [
+      { urls: "stun:stun.relay.metered.ca:80" },
+      { urls: "turn:global.relay.metered.ca:80", username: TURN_USERNAME, credential: TURN_PASSWORD },
+      { urls: "turn:global.relay.metered.ca:80?transport=tcp", username: TURN_USERNAME, credential: TURN_PASSWORD },
+      { urls: "turn:global.relay.metered.ca:443", username: TURN_USERNAME, credential: TURN_PASSWORD },
+      { urls: "turns:global.relay.metered.ca:443?transport=tcp", username: TURN_USERNAME, credential: TURN_PASSWORD }
+    ];
 
     const urlPid = (new URLSearchParams(location.search).get("pid") || "").replace(/\W/g, "").slice(0, 12);
     let myPlayerId = null;
@@ -638,6 +654,8 @@
     let iWasInRoom = false;
     let lastSavedSession = "";
     let logSeenCount = null;      // จำนวนบันทึกเหตุการณ์ที่เปิดอ่านแล้ว
+    let presenceArmed = false;    // ตั้งตัวตรวจจับการหลุด (onDisconnect) ในห้องนี้แล้วหรือยัง
+    let hostTransferTimer = null; // ตัวจับเวลารับตำแหน่งหัวหน้าห้องแทน เมื่อหัวหน้าห้องหลุดนาน
 
     // เทียบรายชื่อผู้เล่นกับรอบก่อน แล้วเล่นเสียง/แจ้งโปรแกรมอ่านจอภาพ เมื่อมีคนเข้า ออก หลุด หรือกลับมา
     function trackPresence(room) {
@@ -1514,12 +1532,6 @@
           }
         }
 
-        if (roomData.status !== "waiting" && !isAlreadyIn) {
-          SoundFX.error();
-          errEl.textContent = "ห้องนี้เริ่มเล่นเกมไปแล้ว หากคุณเคยเล่นในห้องนี้ ให้กรอกชื่อเดิมให้ตรงกับที่ใช้ตอนแรก แล้วกดเข้าร่วมอีกครั้ง";
-          return;
-        }
-
         if (!isAlreadyIn && Object.keys(existingPlayers).length >= MAX_PLAYERS) {
           SoundFX.error();
           errEl.textContent = `ห้องนี้มีผู้เล่นครบ ${MAX_PLAYERS} คนแล้วครับ`;
@@ -1530,11 +1542,11 @@
           let failMsg = "";
           const jr = await db.ref("rooms/" + code).transaction(r => {
             if (!r) return r;
-            if (r.status !== "waiting") { failMsg = "ห้องนี้เริ่มเล่นเกมไปแล้ว ไม่สามารถเข้าร่วมได้"; return; }
             r.players = r.players || {};
             if (Object.keys(r.players).length >= MAX_PLAYERS) { failMsg = `ห้องนี้มีผู้เล่นครบ ${MAX_PLAYERS} คนแล้วครับ`; return; }
             r.players[myPlayerId] = { name, gold: 50, joinedAt: Date.now(), online: true };
-            r.logs = [...(r.logs || []), `${name} เข้าร่วมห้องแล้ว`];
+            if (r.status === "playing") addLatePlayer(r, myPlayerId);
+            else r.logs = [...(r.logs || []), `${name} เข้าร่วมห้องแล้ว` + (r.status === "finished" ? " (จะได้เล่นเมื่อหัวหน้าห้องเริ่มเกมใหม่)" : "")];
             return r;
           }, undefined, false);
           if (!jr.committed) {
@@ -1552,6 +1564,24 @@
         errEl.textContent = "เกิดข้อผิดพลาดในการเข้าร่วมห้อง";
       }
     });
+
+    // เข้าร่วมระหว่างเกม: แจกการ์ด 6 ใบ เงิน 50 เป็นพ่อค้าต่อท้ายคิว
+    // ถ้ายังอยู่เฟสตลาดจะได้เล่นรอบนี้เลย ไม่งั้นเริ่มเล่นรอบถัดไป (ไม่ได้อยู่ในตารางผู้ตรวจการของเกมนี้)
+    function addLatePlayer(r, pid) {
+      const p = r.players[pid];
+      const deck = r.deck || [], dL = r.discardLeft || [], dR = r.discardRight || [];
+      p.hand = drawFromDeck(deck, dL, dR, 6);
+      p.stallLegal = [];
+      p.stallContraband = [];
+      const joinNow = r.phase === "market";
+      p.bag = joinNow
+        ? { submitted: false, resolved: false, actualCards: [], declaredGood: "", declaredCount: 0, bribes: {}, decisions: {}, resultText: "" }
+        : { submitted: true, resolved: true, actualCards: [], declaredGood: "", declaredCount: 0, bribes: {}, decisions: {}, resultText: "เพิ่งเข้าร่วม เริ่มเล่นรอบถัดไป" };
+      r.playerOrder = [...(r.playerOrder || []), pid];
+      r.deck = deck; r.discardLeft = dL; r.discardRight = dR;
+      r.logs = [...(r.logs || []), `${p.name} เข้าร่วมระหว่างเกม ` +
+        (joinNow ? "ได้เล่นตั้งแต่รอบนี้ (ต่อคิวท้ายสุดในเฟสตลาด)" : "จะเริ่มเล่นเป็นพ่อค้าตั้งแต่รอบถัดไป") + " และจะไม่ได้เป็นผู้ตรวจการในเกมนี้"];
+    }
 
     document.getElementById("btn-copy-link").addEventListener("click", () => {
       if (!currentRoomCode) return;
@@ -1596,6 +1626,8 @@
       iWasInRoom = false;
       logSeenCount = null;
       lastSavedSession = "";
+      presenceArmed = false;
+      clearTimeout(hostTransferTimer); hostTransferTimer = null;
       endSession(!!opts.forget);
       if (opts.forget) document.getElementById("room-code-input").value = "";
       document.getElementById("voice-bar").classList.add("hidden");
@@ -1638,21 +1670,38 @@
     document.getElementById("btn-leave-room").addEventListener("click", leaveRoom);
     document.getElementById("btn-back-home").addEventListener("click", leaveRoom);
 
-    async function startNewGameInRoom() {
-      if (!currentRoomCode) return;
-      const snapshot = await db.ref("rooms/" + currentRoomCode).once("value");
-      const room = snapshot.val();
-      if (!room || room.hostId !== myPlayerId) return;
-      const playerIds = Object.keys(room.players || {}).filter(id => room.players[id] && room.players[id].name);
-
-      if (playerIds.length < 2) {
-        SoundFX.error();
-        announce("ต้องมีผู้เล่นอย่างน้อย 2 คนขึ้นไปเพื่อเริ่มเกมครับ", true);
-        return;
-      }
-
+    let startingGame = false;
+    async function startNewGameInRoom(ev) {
+      if (!currentRoomCode || startingGame) return;
+      const btn = ev && ev.currentTarget;
       const roundsRadio = document.querySelector('input[name="rounds-per-player"]:checked');
-      const roundsPerPlayer = roundsRadio ? parseInt(roundsRadio.value, 10) : (playerIds.length >= 7 ? 1 : 2);
+      startingGame = true;
+      if (btn) btn.disabled = true;
+      let tooFew = false;
+      try {
+        // ใช้ transaction กันกดซ้ำ/กดพร้อมกันแล้วแจกการ์ดทับกัน
+        await roomTx(room => {
+          tooFew = false;
+          if (room.hostId !== myPlayerId || room.status === "playing") return;
+          const r = buildNewGame(room, roundsRadio ? parseInt(roundsRadio.value, 10) : null);
+          if (!r) { tooFew = true; return; }
+          return r;
+        });
+      } finally {
+        startingGame = false;
+        if (btn) btn.disabled = false;
+      }
+      if (tooFew) {
+        SoundFX.error();
+        announce("ต้องมีผู้เล่นออนไลน์อย่างน้อย 2 คนขึ้นไปเพื่อเริ่มเกมครับ", true);
+      }
+    }
+
+    function buildNewGame(room, roundsChoice) {
+      // คนที่กดออกจากห้องไปแล้ว (left) ไม่ถูกนับเข้าเกมใหม่
+      const playerIds = Object.keys(room.players || {}).filter(id => room.players[id] && room.players[id].name && !room.players[id].left);
+      if (playerIds.length < 2) return null;
+      const roundsPerPlayer = roundsChoice || (playerIds.length >= 7 ? 1 : 2);
 
       const deck = createShuffledDeck();
       const discardLeft = deck.splice(0, 5);
@@ -1678,7 +1727,7 @@
       const modeText = firstSheriffs.length === 2 ? "โหมดผู้ตรวจการ 2 คนแยกตัดสินใจ" : "โหมดผู้ตรวจการ 1 คน";
       const logs = [`เกมเริ่มต้นแล้ว (${modeText})! เล่นทั้งหมด ${sheriffSchedule.length} รอบ ผู้ตรวจการรอบที่ 1 คือ ${sheriffNames} เริ่มเฟสตลาด`];
 
-      await db.ref("rooms/" + currentRoomCode).update({
+      return Object.assign(room, {
         status: "playing",
         round: 1,
         totalRounds: sheriffSchedule.length,
@@ -1711,6 +1760,8 @@
       iWasInRoom = false;
       logSeenCount = null;
       lastSavedSession = "";
+      presenceArmed = false;
+      clearTimeout(hostTransferTimer); hostTransferTimer = null;
       document.getElementById("log-details").open = false;
       document.getElementById("display-room-code").textContent = code;
       document.getElementById("voice-bar").classList.remove("hidden");
@@ -1759,7 +1810,12 @@
           }
           lastStatus = room.status;
         }
-        if (pl[myPlayerId] && pl[myPlayerId].online !== true) markOnline();
+        // ตั้งตัวตรวจจับการหลุดทุกครั้งที่เข้าห้อง (เดิมตั้งเฉพาะตอนสถานะเป็นออฟไลน์ ทำให้คนที่เพิ่งเข้าห้องไม่เคยถูกตั้งเลย)
+        if (pl[myPlayerId] && (!presenceArmed || pl[myPlayerId].online !== true)) {
+          presenceArmed = true;
+          markOnline();
+        }
+        checkHostTransfer(room);
 
         trackPresence(room);
 
@@ -1787,6 +1843,145 @@
     }
     db.ref(".info/connected").on("value", (s) => {
       if (s.val()) markOnline();
+    });
+
+    // หัวหน้าห้องหลุดเกิน 20 วินาที → ผู้เล่นออนไลน์ที่เข้าห้องก่อนสุดรับตำแหน่งแทน (กันห้องค้างไม่มีใครปิด/เริ่มเกมใหม่ได้)
+    const HOST_TRANSFER_DELAY = 20000;
+    function hostIsGone(room) {
+      const h = room && room.players && room.players[room.hostId];
+      return !h || h.online === false;
+    }
+    function nextHostCandidate(room) {
+      const online = Object.entries(room.players || {})
+        .filter(([pid, p]) => p && p.online !== false && pid !== room.hostId)
+        .sort((a, b) => ((a[1].joinedAt || 0) - (b[1].joinedAt || 0)) || (a[0] < b[0] ? -1 : 1));
+      return online.length ? online[0][0] : null;
+    }
+    function checkHostTransfer(room) {
+      const mine = hostIsGone(room) && nextHostCandidate(room) === myPlayerId;
+      if (!mine) { clearTimeout(hostTransferTimer); hostTransferTimer = null; return; }
+      if (hostTransferTimer) return;
+      hostTransferTimer = setTimeout(async () => {
+        hostTransferTimer = null;
+        if (!currentRoomData || !hostIsGone(currentRoomData) || nextHostCandidate(currentRoomData) !== myPlayerId) return;
+        const res = await roomTx(r => {
+          if (!hostIsGone(r) || nextHostCandidate(r) !== myPlayerId) return;
+          const oldName = (r.players[r.hostId] && r.players[r.hostId].name) || "หัวหน้าห้องเดิม";
+          r.hostId = myPlayerId;
+          r.logs = [...(r.logs || []), `${oldName} หลุดการเชื่อมต่อนานเกินไป ${r.players[myPlayerId].name} เป็นหัวหน้าห้องแทนแล้ว`];
+          return r;
+        });
+        if (res) announce("หัวหน้าห้องเดิมหลุดการเชื่อมต่อ ตอนนี้คุณเป็นหัวหน้าห้องแทนแล้ว", true);
+      }, HOST_TRANSFER_DELAY);
+    }
+
+    // ---------- เครื่องมือหัวหน้าห้อง: ข้ามตาหรือตัดสินแทนผู้เล่นที่ออฟไลน์ (กันเกมค้าง) ----------
+    const isOffline = (room, pid) => !!(room.players[pid] && room.players[pid].online === false);
+    function findBlocker(room) {
+      if (room.status !== "playing") return null;
+      const players = room.players || {};
+      const merchants = getMerchants(room);
+      const sIds = getSheriffIds(room);
+      const names = (ids) => ids.map(id => (players[id] && players[id].name) || "-").join(", ");
+      if (room.phase === "market") {
+        const active = merchants[room.marketTurnIndex || 0];
+        if (active && isOffline(room, active)) {
+          return { kind: "market", ids: [active],
+            text: `${names([active])} ออฟไลน์อยู่ขณะถึงตาในเฟสตลาด`, label: `ข้ามตาตลาดของ ${names([active])}` };
+        }
+      } else if (room.phase === "load_declare") {
+        const ids = merchants.filter(pid => isOffline(room, pid) && !(players[pid].bag && players[pid].bag.submitted));
+        if (ids.length) return { kind: "bag", ids,
+          text: `${names(ids)} ออฟไลน์อยู่และยังไม่ได้ส่งถุง`, label: `ให้ ${names(ids)} ข้ามรอบนี้ (ไม่ส่งถุง)` };
+      } else if (room.phase === "inspection") {
+        const offSheriffs = sIds.filter(sid => isOffline(room, sid));
+        if (!offSheriffs.length) return null;
+        const pending = merchants.filter(pid => {
+          const b = players[pid] && players[pid].bag;
+          return b && !b.resolved && offSheriffs.some(sid => !(b.decisions || {})[sid]);
+        });
+        if (pending.length) return { kind: "decide", ids: offSheriffs,
+          text: `ผู้ตรวจการ ${names(offSheriffs)} ออฟไลน์อยู่ ยังมีถุงที่รอการตัดสิน`, label: `ปล่อยผ่านถุงที่เหลือแทน ${names(offSheriffs)}` };
+        const allResolved = merchants.every(pid => players[pid] && players[pid].bag && players[pid].bag.resolved);
+        if (allResolved && sIds.every(sid => isOffline(room, sid))) return { kind: "endround", ids: sIds,
+          text: `ตรวจครบแล้ว แต่ผู้ตรวจการ ${names(sIds)} ออฟไลน์อยู่`, label: room.round >= room.totalRounds ? "จบเกมแทนผู้ตรวจการ" : "เริ่มรอบถัดไปแทนผู้ตรวจการ" };
+      }
+      return null;
+    }
+
+    function renderHostAssist(room) {
+      const panel = document.getElementById("host-assist");
+      const blocker = room.hostId === myPlayerId ? findBlocker(room) : null;
+      if (!blocker) { panel.classList.add("hidden"); panel.dataset.sig = ""; return; }
+      const sig = `${room.round}|${room.phase}|${blocker.kind}|${blocker.ids.join(",")}`;
+      if (panel.dataset.sig === sig && !panel.classList.contains("hidden")) return; // ไม่วาดใหม่ กันโฟกัสหลุด
+      panel.dataset.sig = sig;
+      document.getElementById("host-assist-text").textContent = `${blocker.text} คุณเป็นหัวหน้าห้อง จะรอให้กลับมา หรือกดปุ่มด้านล่างเพื่อเล่นต่อก็ได้`;
+      const btn = document.getElementById("btn-host-assist");
+      btn.textContent = blocker.label;
+      btn.disabled = false;
+      const wasHidden = panel.classList.contains("hidden");
+      panel.classList.remove("hidden");
+      if (wasHidden) { SoundFX.disconnect(); announce(`${blocker.text} หัวหน้าห้องกดปุ่ม ${blocker.label} เพื่อเล่นต่อได้`, true); }
+    }
+
+    function applyHostAssist(r) {
+      if (r.hostId !== myPlayerId) return;
+      const blocker = findBlocker(r);
+      if (!blocker) return;
+      const logs = [...(r.logs || [])];
+      if (blocker.kind === "market") {
+        const pid = blocker.ids[0];
+        const mp = r.players[pid];
+        const pend = mp.marketPending || [];
+        if (pend.length) {
+          // จั่วที่ค้างให้ครบ แล้วทิ้งการ์ดที่พักไว้ลงกองทิ้งซ้าย
+          const deck = r.deck || [], dL = r.discardLeft || [], dR = r.discardRight || [];
+          const need = Math.max(0, pend.length - (mp.marketDrawn || 0));
+          mp.hand = [...(mp.hand || []), ...drawFromDeck(deck, dL, dR, need)];
+          dL.push(...pend);
+          r.deck = deck; r.discardLeft = dL; r.discardRight = dR;
+        }
+        delete mp.marketPending; delete mp.marketDrawn;
+        logs.push(`หัวหน้าห้องข้ามตาตลาดของ ${mp.name} (ออฟไลน์)`);
+        advanceMarketTurn(r, logs);
+      } else if (blocker.kind === "bag") {
+        blocker.ids.forEach(pid => {
+          r.players[pid].bag = { submitted: true, resolved: true, actualCards: [], declaredGood: "", declaredCount: 0,
+            bribes: {}, decisions: {}, resultText: "ข้ามรอบนี้เพราะออฟไลน์ (ไม่ได้ส่งถุง)" };
+          logs.push(`หัวหน้าห้องให้ ${r.players[pid].name} ข้ามรอบนี้ (ออฟไลน์ ไม่ได้ส่งถุง)`);
+        });
+        r.logs = logs;
+        maybeStartInspection(r);
+        return r;
+      } else if (blocker.kind === "decide") {
+        r.logs = [...logs, `หัวหน้าห้องตัดสิน "ปล่อยผ่าน" แทนผู้ตรวจการที่ออฟไลน์ (${blocker.ids.map(id => r.players[id].name).join(", ")})`];
+        getMerchants(r).forEach(pid => {
+          const m = r.players[pid];
+          if (!m || !m.bag || m.bag.resolved) return;
+          const decisions = { ...(m.bag.decisions || {}) };
+          blocker.ids.forEach(sid => { if (!decisions[sid]) decisions[sid] = "pass"; });
+          if (getSheriffIds(r).every(sid => !!decisions[sid])) resolveMerchantBag(r, pid, decisions);
+          else r.players[pid].bag.decisions = decisions;
+        });
+        return r;
+      } else if (blocker.kind === "endround") {
+        r.logs = [...logs, "หัวหน้าห้องกดจบรอบแทนผู้ตรวจการที่ออฟไลน์"];
+        return advanceRound(r);
+      }
+      r.logs = logs;
+      return r;
+    }
+
+    document.getElementById("btn-host-assist").addEventListener("click", async (ev) => {
+      const btn = ev.currentTarget;
+      btn.disabled = true;
+      lastActionRenderKey = "";
+      const res = await roomTx(applyHostAssist);
+      if (!res) {
+        btn.disabled = false;
+        announce("ทำรายการไม่สำเร็จ ผู้เล่นอาจกลับมาออนไลน์แล้ว", true);
+      }
     });
 
     // หัวหน้าห้องปิดห้อง: ลบห้องทิ้ง ผู้เล่นทุกคนจะถูกพากลับหน้าแรกอัตโนมัติ
@@ -1898,6 +2093,7 @@
       renderPlayersStatus(room);
       renderMyHand(me);
       renderActionPanel(room);
+      renderHostAssist(room);
 
       const logs = room.logs || [];
       const logListEl = document.getElementById("game-log-list");
@@ -2073,7 +2269,8 @@
         } else {
           const myResolved = !!(me && me.bag && me.bag.resolved);
           const allResolved = merchants.every(pid => players[pid]?.bag?.resolved);
-          renderKey += `_merchant_${myResolved}_${allResolved}`;
+          const myLocks = sIds.filter(sid => !!(me && me.bag && (me.bag.decisions || {})[sid])).join(",");
+          renderKey += `_merchant_${myResolved}_${allResolved}_${myLocks}`;
         }
       }
 
@@ -2084,13 +2281,50 @@
       const contentEl = document.getElementById("action-content");
       document.getElementById("action-error").textContent = "";
 
+      // จำโฟกัสและค่าที่กรอกค้างไว้ในเฟสเดิม เพื่อคืนให้หลังวาดหน้าจอใหม่ (กันโฟกัสโปรแกรมอ่านจอภาพเด้งหาย)
+      const keep = !isPhaseOrTurnChanged ? captureActionState(contentEl, room.phase === "inspection") : null;
+
       if (room.phase === "market") renderMarketAction(room, contentEl);
       else if (room.phase === "load_declare") renderLoadDeclareAction(room, contentEl);
       else if (room.phase === "inspection") renderInspectionAction(room, contentEl);
 
       if (isPhaseOrTurnChanged) {
         document.getElementById("phase-title").focus();
+      } else if (keep) {
+        restoreActionState(contentEl, keep);
       }
+    }
+
+    // ระบุตัวควบคุมด้วย id หรือ data-pid/data-action/data-sid+value (ไม่ใช้ลำดับ เพราะรายการอาจเปลี่ยน)
+    function controlKey(el) {
+      if (el.id) return "#" + el.id;
+      if (el.dataset.pid) return `[data-pid="${el.dataset.pid}"][data-action="${el.dataset.action || ""}"]`;
+      if (el.dataset.sid && el.value) return `.${el.classList[0]}[data-sid="${el.dataset.sid}"][value="${el.value}"]`;
+      return null;
+    }
+
+    function captureActionState(contentEl, withValues) {
+      const active = document.activeElement;
+      const state = { hadFocus: !!(active && contentEl.contains(active)), focus: null, values: [] };
+      if (state.hadFocus) state.focus = controlKey(active);
+      if (withValues) {
+        contentEl.querySelectorAll("input, select").forEach(el => {
+          const k = controlKey(el);
+          if (k && !el.disabled) state.values.push([k, el.type === "checkbox" ? el.checked : el.value]);
+        });
+      }
+      return state;
+    }
+
+    function restoreActionState(contentEl, state) {
+      state.values.forEach(([k, v]) => {
+        const el = contentEl.querySelector(k);
+        if (!el || el.disabled || el.closest("fieldset[disabled]")) return;
+        if (el.type === "checkbox") el.checked = v; else el.value = v;
+      });
+      if (!state.hadFocus) return;
+      const target = (state.focus && contentEl.querySelector(state.focus)) || document.getElementById("action-heading");
+      if (target) target.focus();
     }
 
     // ---------- เฟสที่ 1: ตลาด ----------
@@ -2244,19 +2478,33 @@
           r[key] = [...(r[key] || []), ...pend];
         } else if (pend.length > 0) return;
         delete mp.marketPending; delete mp.marketDrawn;
-        const logs = [...(r.logs || []), `พ่อค้า ${mp.name} ${actionDesc}`];
-        if (idx + 1 >= merchants.length) {
-          r.phase = "load_declare";
-          logs.push("จบเฟสตลาด! เข้าสู่เฟสใส่สินค้าลงถุงและประกาศสินค้า พ่อค้าทุกคนเลือกสินค้าได้เลย");
-          r.lastSoundEvent = { type: "card", id: Date.now() };
-        } else {
-          r.marketTurnIndex = idx + 1;
-          logs.push(`ถึงตาพ่อค้า ${r.players[merchants[idx + 1]].name} ในเฟสตลาด`);
-        }
-        r.logs = logs;
+        advanceMarketTurn(r, [...(r.logs || []), `พ่อค้า ${mp.name} ${actionDesc}`]);
         return r;
       });
       return !!res;
+    }
+
+    // ส่งตาตลาดไปพ่อค้าคนถัดไป หรือเข้าเฟสใส่ถุงเมื่อครบทุกคน
+    function advanceMarketTurn(r, logs) {
+      const merchants = getMerchants(r);
+      const idx = r.marketTurnIndex || 0;
+      if (idx + 1 >= merchants.length) {
+        r.phase = "load_declare";
+        logs.push("จบเฟสตลาด! เข้าสู่เฟสใส่สินค้าลงถุงและประกาศสินค้า พ่อค้าทุกคนเลือกสินค้าได้เลย");
+        r.lastSoundEvent = { type: "card", id: Date.now() };
+      } else {
+        r.marketTurnIndex = idx + 1;
+        logs.push(`ถึงตาพ่อค้า ${r.players[merchants[idx + 1]].name} ในเฟสตลาด`);
+      }
+      r.logs = logs;
+    }
+
+    // พ่อค้าทุกคนส่งถุงครบแล้ว → เข้าเฟสตรวจค้น
+    function maybeStartInspection(r) {
+      if (r.phase !== "load_declare") return;
+      if (!getMerchants(r).every(pid => r.players[pid] && r.players[pid].bag && r.players[pid].bag.submitted)) return;
+      r.phase = "inspection";
+      r.logs = [...(r.logs || []), `พ่อค้าทุกคนส่งถุงครบแล้ว! เข้าสู่เฟสตรวจค้น ผู้ตรวจการ ${getSheriffIds(r).map(id => r.players[id].name).join(" และ ")} เริ่มเจรจาและตัดสินใจได้เลย`];
     }
 
     // ---------- เฟสที่ 2 และ 3: ใส่ถุงและประกาศ ----------
@@ -2272,6 +2520,10 @@
       }
 
       const me = room.players[myPlayerId];
+      if (me.bag && me.bag.resolved) {
+        container.innerHTML = `<p>${esc(me.bag.resultText || "รอบนี้คุณไม่ได้ส่งถุง")} กำลังรอพ่อค้าคนอื่น (${submittedCount} จาก ${merchants.length} คน)...</p>`;
+        return;
+      }
       if (me.bag && me.bag.submitted) {
         const gName = CARD_TYPES[me.bag.declaredGood]?.name || "-";
         container.innerHTML = `<p>คุณส่งถุงสินค้าเรียบร้อยแล้ว (ประกาศว่าใส่ <strong>${gName} ${me.bag.declaredCount} ใบ</strong>) กำลังรอพ่อค้าคนอื่น (${submittedCount} จาก ${merchants.length} คน)...</p>`;
@@ -2331,12 +2583,8 @@
           if (checked.some((i, j) => h[i] !== shown[j])) return;
           mp.hand = h.filter((_, i) => !checked.includes(i));
           mp.bag = { submitted: true, resolved: false, actualCards: shown, declaredGood, declaredCount: shown.length, bribes: {}, decisions: {}, resultText: "" };
-          const logs = [...(r.logs || []), `พ่อค้า ${mp.name} ปิดถุงและประกาศว่าใส่ ${CARD_TYPES[declaredGood].name} จำนวน ${shown.length} ใบ`];
-          if (getMerchants(r).every(pid => r.players[pid] && r.players[pid].bag && r.players[pid].bag.submitted)) {
-            r.phase = "inspection";
-            logs.push(`พ่อค้าทุกคนส่งถุงครบแล้ว! เข้าสู่เฟสตรวจค้น ผู้ตรวจการ ${getSheriffIds(r).map(id => r.players[id].name).join(" และ ")} เริ่มเจรจาและตัดสินใจได้เลย`);
-          }
-          r.logs = logs;
+          r.logs = [...(r.logs || []), `พ่อค้า ${mp.name} ปิดถุงและประกาศว่าใส่ ${CARD_TYPES[declaredGood].name} จำนวน ${shown.length} ใบ`];
+          maybeStartInspection(r);
           r.lastSoundEvent = { type: "zipBag", id: Date.now() };
           return r;
         });
@@ -2450,9 +2698,10 @@
           const sName = room.players[sid]?.name || "ผู้ตรวจการ";
           const saved = currentBribes[sid] || { gold: 0, bagGood: "", bagQty: 0, stallItems: [] };
           const savedStall = saved.stallItems || [];
+          const locked = !!(bag.decisions || {})[sid];
 
-          html += `<fieldset data-sheriff-bribe="${sid}">
-            <legend>เสนอสินบนให้ผู้ตรวจการ: ${sName}</legend>
+          html += `<fieldset data-sheriff-bribe="${sid}"${locked ? " disabled" : ""}>
+            <legend>เสนอสินบนให้ผู้ตรวจการ: ${sName}${locked ? " (ล็อกแล้ว ผู้ตรวจการคนนี้ตัดสินใจแล้ว แก้ไม่ได้)" : ""}</legend>
             <div class="bribe-row">
               <div>
                 <label for="bribe-gold-${sid}">1. เงินสด (เหรียญ)</label>
@@ -2535,20 +2784,43 @@
             return;
           }
 
-          const snap = await db.ref("rooms/" + currentRoomCode).once("value");
-          const latestRoom = snap.val();
-          if (latestRoom.players[myPlayerId]?.bag?.resolved) return;
-
-          const logs = latestRoom.logs || [];
-          const summaryList = sIds.map(sid => `ให้ ${latestRoom.players[sid].name}: ${formatBribeSummary(newBribes[sid], me)}`).join(" | ");
-          logs.push(`พ่อค้า ${me.name} ปรับข้อเสนอสินบน — ${summaryList}`);
-
-          await db.ref("rooms/" + currentRoomCode).update({
-            [`players/${myPlayerId}/bag/bribes`]: newBribes,
-            logs: logs,
-            lastSoundEvent: { type: "coin", id: Date.now() }
+          // บันทึกแบบ transaction: ข้อเสนอให้ผู้ตรวจการที่ตัดสินใจไปแล้วจะถูกล็อกไว้ แก้ย้อนหลังไม่ได้ (กันโกงสินบน)
+          const submitBtn = document.getElementById("btn-submit-bribes");
+          submitBtn.disabled = true;
+          let failMsg = "";
+          let lockedNames = [];
+          const res = await roomTx(r => {
+            const mp = r.players && r.players[myPlayerId];
+            if (r.phase !== "inspection" || !mp || !mp.bag || mp.bag.resolved) { failMsg = "ถุงของคุณถูกตัดสินไปแล้ว"; return; }
+            const dec = mp.bag.decisions || {};
+            const oldBribes = mp.bag.bribes || {};
+            const finalBribes = {};
+            lockedNames = [];
+            getSheriffIds(r).forEach(sid => {
+              if (dec[sid]) {
+                if (oldBribes[sid]) finalBribes[sid] = oldBribes[sid];
+                if (JSON.stringify(oldBribes[sid] || null) !== JSON.stringify(newBribes[sid] || null)) lockedNames.push(r.players[sid].name);
+              } else if (newBribes[sid]) {
+                finalBribes[sid] = newBribes[sid];
+              }
+            });
+            const total = Object.values(finalBribes).reduce((s, b) => s + (b.gold || 0), 0);
+            if (total > (mp.gold || 0)) { failMsg = `ยอดเงินสดที่เสนอรวมกัน (${total} เหรียญ) เกินเงินที่คุณมี (${mp.gold} เหรียญ)`; return; }
+            mp.bag.bribes = finalBribes;
+            const summaryList = Object.keys(finalBribes).map(sid => `ให้ ${r.players[sid].name}: ${formatBribeSummary(finalBribes[sid], mp)}`).join(" | ") || "ไม่มีสินบน";
+            r.logs = [...(r.logs || []), `พ่อค้า ${mp.name} ปรับข้อเสนอสินบน — ${summaryList}`];
+            r.lastSoundEvent = { type: "coin", id: Date.now() };
+            return r;
           });
-          announce("ส่งข้อเสนอสินบนเรียบร้อยแล้ว");
+          if (document.body.contains(submitBtn)) submitBtn.disabled = false;
+          if (!res) {
+            SoundFX.error();
+            if (failMsg) errEl.textContent = failMsg;
+            return;
+          }
+          announce(lockedNames.length
+            ? `ส่งข้อเสนอสินบนแล้ว แต่ข้อเสนอให้ ${lockedNames.join(", ")} ไม่ถูกเปลี่ยน เพราะตัดสินใจไปแล้ว`
+            : "ส่งข้อเสนอสินบนเรียบร้อยแล้ว", true);
         });
       }
     }
@@ -2801,6 +3073,12 @@
         if (r.status !== "playing" || r.phase !== "inspection") return;
         if (!getSheriffIds(r).includes(myPlayerId)) return;
         if (!getMerchants(r).every(pid => r.players[pid] && r.players[pid].bag && r.players[pid].bag.resolved)) return;
+        return advanceRound(r);
+      });
+    }
+
+    // จบรอบ: ถ้าครบทุกรอบแล้วจบเกม ไม่งั้นเติมไพ่ให้ครบ 6 ใบ ล้างถุง และเปลี่ยนผู้ตรวจการ
+    function advanceRound(r) {
         const logs = [...(r.logs || [])];
         if (r.round >= r.totalRounds) {
           logs.push("เล่นครบทุกรอบแล้ว! กำลังสรุปคะแนนสุดท้าย");
@@ -2825,14 +3103,15 @@
         Object.assign(r, { round: nextRound, phase: "market", sheriffIds: nextSheriffs, marketTurnIndex: 0,
           deck, discardLeft: dLeft, discardRight: dRight, logs, lastSoundEvent: { type: "startGame", id: Date.now() } });
         return r;
-      });
     }
 
     // ==========================================
     // 10. คำนวณคะแนนจบเกมและโบนัสราชา-ราชินี (ครบ 6 ชนิด)
     // ==========================================
     function renderGameOver(room) {
-      if (document.getElementById("view-gameover").classList.contains("hidden")) {
+      // ประกาศผู้ชนะแค่ครั้งแรกที่เข้าหน้าจบเกม (ไม่พูดซ้ำทุกครั้งที่มีคนเข้า/ออก)
+      const firstShow = document.getElementById("view-gameover").classList.contains("hidden");
+      if (firstShow) {
         showView("view-gameover", "heading-gameover");
       }
 
@@ -2928,7 +3207,7 @@
 
       const isHost = (room.hostId === myPlayerId);
       document.getElementById("btn-play-again").classList.toggle("hidden", !isHost);
-      announce(`จบเกมแล้ว! ผู้ชนะคือ ${winner.name} ด้วยคะแนนรวม ${winner.totalScore} คะแนน`, true);
+      if (firstShow) announce(`จบเกมแล้ว! ผู้ชนะคือ ${winner.name} ด้วยคะแนนรวม ${winner.totalScore} คะแนน`, true);
     }
 
     // ==========================================
