@@ -4,6 +4,22 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ผู้ตรวจการแห่งน็อตติ้งแฮม - เกมออนไลน์</title>
+  <script>
+    // ใช้การตั้งค่าการแสดงผลที่จำไว้ทันทีตั้งแต่โหลดหน้า (กันหน้าจอกะพริบเป็นแบบเดิมก่อน)
+    (function () {
+      try {
+        var s = JSON.parse(localStorage.getItem("sheriff_display") || "{}") || {};
+        var h = document.documentElement;
+        if (s.text) h.style.fontSize = (parseFloat(s.text) * 100) + "%";
+        if (s.icon) h.setAttribute("data-icon", s.icon);
+        if (s.layout) h.setAttribute("data-layout", s.layout);
+        if (s.theme) h.setAttribute("data-theme", s.theme);
+        if (s.spacing) h.setAttribute("data-spacing", s.spacing);
+        if (s.bold) h.setAttribute("data-bold", "");
+        if (s.columns) h.setAttribute("data-columns", s.columns);
+      } catch (e) {}
+    })();
+  </script>
 
   <!-- ตั้งค่า PWA สำหรับ Android และเบราว์เซอร์ทั่วไป -->
   <link rel="manifest" href="./manifest.json">
@@ -85,6 +101,16 @@
       justify-content: space-between;
       gap: 10px;
     }
+
+    .voice-help { flex-basis: 100%; border-top: 1px solid var(--border); padding-top: 10px; }
+    .voice-help h3 { font-size: 1.05rem; margin-bottom: 6px; }
+    .voice-help ol { margin: 0 0 10px; padding-left: 22px; }
+    .voice-help li { margin-bottom: 4px; }
+    a.button-link {
+      display: inline-flex; align-items: center; min-height: 46px; padding: 10px 18px; margin: 0 8px 8px 0;
+      background: var(--primary); color: #fff; border-radius: 6px; font-weight: 600; text-decoration: none;
+    }
+    a.button-link:focus-visible { outline: 3px solid #b45309; outline-offset: 2px; }
 
     .card-panel {
       background: var(--surface);
@@ -184,7 +210,8 @@
 
     .hand-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      /* ขยายตามขนาดตัวอักษร และไม่ล้นจอแคบ */
+      grid-template-columns: repeat(auto-fill, minmax(min(100%, 13.75rem), 1fr));
       gap: 10px;
       list-style: none;
       padding: 0;
@@ -209,9 +236,10 @@
     }
 
     .card-icon {
-      font-size: 1.6rem;
+      font-size: var(--icon-size, 1.6rem);
       margin-right: 6px;
       vertical-align: middle;
+      line-height: 1.1;
     }
 
     .checkbox-card {
@@ -224,8 +252,10 @@
     }
 
     .checkbox-card input[type="checkbox"] {
-      width: 22px;
-      height: 22px;
+      width: 1.4rem;
+      height: 1.4rem;
+      min-width: 22px;
+      min-height: 22px;
       margin-top: 2px;
       flex-shrink: 0;
     }
@@ -262,8 +292,10 @@
     }
 
     .radio-option input[type="radio"] {
-      width: 20px;
-      height: 20px;
+      width: 1.25rem;
+      height: 1.25rem;
+      min-width: 20px;
+      min-height: 20px;
     }
 
     .bribe-row {
@@ -361,6 +393,158 @@
     .rules-guide ol, .rules-guide ul { padding-left: 22px; }
     .rules-guide li { margin-bottom: 4px; }
 
+    /* จอแคบ (มือถือ หรือขยายตัวอักษรมาก): ลดขอบ ให้เนื้อหามีพื้นที่มากขึ้น */
+    @media (max-width: 480px) {
+      body { padding: 8px; }
+      .card-panel { padding: 12px; }
+      .phase-banner { padding: 10px 10px; }
+      fieldset { padding: 10px; }
+    }
+
+    /* ตารางสถานะผู้เล่น: ถ้าพื้นที่แคบ (มือถือแนวตั้ง หรือคอลัมน์ขวาของจอแนวนอน) แสดงเป็นการ์ดต่อผู้เล่น
+       (ใส่ role ไว้ในตารางแล้ว โปรแกรมอ่านจอภาพยังอ่านเป็นตารางได้) */
+    #players-status-container { container-type: inline-size; }
+    @container (max-width: 34rem) {
+      .status-table, .status-table tbody, .status-table tr, .status-table th, .status-table td { display: block; }
+      .status-table thead tr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
+      .status-table tbody tr { border: 2px solid var(--border); border-radius: 8px; padding: 8px 12px; margin-bottom: 10px; }
+      .status-table th[scope="row"] { background: none; border: none; padding: 0 0 4px; font-size: 1.1em; }
+      .status-table td { border: none; padding: 2px 0; }
+      .status-table td::before { content: attr(data-label) ": "; font-weight: 700; }
+    }
+
+    /* จอแนวนอนที่กว้างพอ: หน้าเกมแบ่ง 2 คอลัมน์ (ซ้าย = คำสั่ง, ขวา = สถานะ การ์ดบนมือ บันทึก)
+       ผู้ใช้เลือก "คอลัมน์เดียวเสมอ" ได้ในตั้งค่าการแสดงผล */
+    @media (orientation: landscape) and (min-width: 900px) {
+      html:not([data-columns="single"]) main:has(#view-game:not(.hidden)) { max-width: 1400px; }
+      html:not([data-columns="single"]) #view-game {
+        display: grid;
+        grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+        grid-template-areas:
+          "info   info"
+          "assist assist"
+          "action status"
+          "action hand"
+          "action log"
+          "footer footer";
+        column-gap: 18px;
+        align-items: start;
+      }
+      html:not([data-columns="single"]) #game-info-panel { grid-area: info; }
+      html:not([data-columns="single"]) #host-assist { grid-area: assist; }
+      html:not([data-columns="single"]) #action-panel { grid-area: action; }
+      html:not([data-columns="single"]) #status-panel { grid-area: status; }
+      html:not([data-columns="single"]) #hand-panel { grid-area: hand; }
+      html:not([data-columns="single"]) #log-panel { grid-area: log; }
+      html:not([data-columns="single"]) #view-game .room-footer { grid-area: footer; }
+    }
+
+    /* จอแนวนอนที่เตี้ย (มือถือหมุนนอน): ลดช่องว่างแนวตั้ง ให้เห็นเนื้อหามากขึ้น */
+    @media (orientation: landscape) and (max-height: 500px) {
+      body { padding-top: 6px; padding-bottom: 6px; }
+      .top-bar { margin-bottom: 8px; }
+      .top-bar h1 { font-size: 1.25rem; }
+      .card-panel, .audio-panel, .display-panel, .voice-bar { margin-bottom: 10px; }
+      .card-panel { padding-top: 10px; padding-bottom: 10px; }
+    }
+
+    /* ===== ตั้งค่าการแสดงผล (สำหรับผู้ที่สายตาเลือนลาง) ===== */
+    .display-panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 6px 14px;
+      margin-bottom: 16px;
+    }
+    .display-panel summary { cursor: pointer; font-weight: 700; padding: 10px 2px; min-height: 44px; }
+    .display-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(min(100%, 15rem), 1fr));
+      gap: 12px 20px;
+      margin: 6px 0 12px;
+    }
+    .display-grid select { max-width: 100%; }
+    .display-grid .ds-check label { display: flex; align-items: center; gap: 8px; margin-top: 30px; }
+    .display-grid .ds-check input { width: 22px; height: 22px; }
+
+    /* ขนาดไอคอนสินค้า */
+    html[data-icon="large"]  { --icon-size: 2.6rem; }
+    html[data-icon="xlarge"] { --icon-size: 3.8rem; }
+
+    /* ไอคอนอยู่บน ชื่อสินค้าอยู่ใต้ไอคอน */
+    html[data-layout="stacked"] .game-card .card-icon,
+    html[data-layout="stacked"] .radio-option .card-icon {
+      display: block;
+      margin: 0 auto 6px;
+      text-align: center;
+    }
+    html[data-layout="stacked"] .game-card { text-align: center; }
+    html[data-layout="stacked"] .checkbox-card { flex-direction: column; align-items: center; }
+    html[data-layout="stacked"] .radio-option { flex-direction: column; text-align: center; }
+
+    /* ระยะห่างตัวอักษร / ตัวหนา */
+    html[data-spacing="wide"] body { letter-spacing: 0.06em; word-spacing: 0.14em; line-height: 1.9; }
+    html[data-bold] body { font-weight: 600; }
+    html[data-bold] strong, html[data-bold] h1, html[data-bold] h2, html[data-bold] h3, html[data-bold] legend, html[data-bold] th { font-weight: 800; }
+
+    /* ธีมมืด */
+    html[data-theme="dark"] {
+      --bg: #0f172a; --surface: #1e293b; --text: #f1f5f9; --muted: #cbd5e1; --border: #64748b;
+      --primary: #2563eb; --primary-hover: #1d4ed8; --danger: #dc2626; --danger-hover: #b91c1c;
+      --success: #047857; --success-hover: #065f46;
+      --legal-bg: #052e1c; --legal-border: #34d399; --contra-bg: #3b0a0a; --contra-border: #f87171;
+      color-scheme: dark;
+    }
+    html[data-theme="dark"] .voice-bar, html[data-theme="dark"] .phase-banner, html[data-theme="dark"] .room-code-box { background: #172554; border-color: #60a5fa; }
+    html[data-theme="dark"] fieldset, html[data-theme="dark"] .merchant-inspect-box, html[data-theme="dark"] .radio-option { background: #0f172a; }
+    html[data-theme="dark"] .merchant-inspect-box.resolved, html[data-theme="dark"] th { background: #334155; }
+    html[data-theme="dark"] input[type="text"], html[data-theme="dark"] input[type="number"], html[data-theme="dark"] select { background: #0f172a; color: var(--text); border-color: #94a3b8; }
+    html[data-theme="dark"] button.secondary { background-color: #475569; }
+    html[data-theme="dark"] .error-msg { color: #fca5a5; }
+    html[data-theme="dark"] .log-panel summary.has-new { color: #93c5fd; }
+    html[data-theme="dark"] :focus-visible { outline-color: #fbbf24 !important; }
+
+    /* คอนทราสต์สูง พื้นขาว ตัวอักษรดำ */
+    html[data-theme="hc-light"] {
+      --bg: #ffffff; --surface: #ffffff; --text: #000000; --muted: #000000; --border: #000000;
+      --primary: #000000; --primary-hover: #222222; --danger: #8b0000; --danger-hover: #600000;
+      --success: #004d00; --success-hover: #003300;
+      --legal-bg: #ffffff; --legal-border: #006400; --contra-bg: #ffffff; --contra-border: #b00000;
+    }
+    html[data-theme="hc-light"] .voice-bar, html[data-theme="hc-light"] .phase-banner, html[data-theme="hc-light"] .room-code-box,
+    html[data-theme="hc-light"] fieldset, html[data-theme="hc-light"] .merchant-inspect-box, html[data-theme="hc-light"] .radio-option,
+    html[data-theme="hc-light"] th, html[data-theme="hc-light"] .merchant-inspect-box.resolved { background: #ffffff; border-color: #000000; }
+    html[data-theme="hc-light"] button { border: 3px solid #000; }
+    html[data-theme="hc-light"] button.secondary { background-color: #ffffff; color: #000000; }
+    html[data-theme="hc-light"] .game-card { border-width: 4px; }
+    html[data-theme="hc-light"] .card-panel, html[data-theme="hc-light"] th, html[data-theme="hc-light"] td { border-color: #000; border-width: 2px; }
+    html[data-theme="hc-light"] input[type="text"], html[data-theme="hc-light"] input[type="number"], html[data-theme="hc-light"] select { border: 3px solid #000; color: #000; }
+    html[data-theme="hc-light"] :focus-visible { outline: 4px solid #0000cd !important; outline-offset: 3px; }
+
+    /* คอนทราสต์สูง พื้นดำ ตัวอักษรเหลือง */
+    html[data-theme="hc-dark"] {
+      --bg: #000000; --surface: #000000; --text: #ffeb3b; --muted: #ffeb3b; --border: #ffeb3b;
+      --primary: #000000; --primary-hover: #222200; --danger: #000000; --danger-hover: #220000;
+      --success: #000000; --success-hover: #002200;
+      --legal-bg: #000000; --legal-border: #00e676; --contra-bg: #000000; --contra-border: #ff6e6e;
+      color-scheme: dark;
+    }
+    html[data-theme="hc-dark"] .voice-bar, html[data-theme="hc-dark"] .phase-banner, html[data-theme="hc-dark"] .room-code-box,
+    html[data-theme="hc-dark"] fieldset, html[data-theme="hc-dark"] .merchant-inspect-box, html[data-theme="hc-dark"] .radio-option,
+    html[data-theme="hc-dark"] th, html[data-theme="hc-dark"] .merchant-inspect-box.resolved { background: #000000; border-color: #ffeb3b; }
+    html[data-theme="hc-dark"] button { color: #ffeb3b; border: 3px solid #ffeb3b; }
+    html[data-theme="hc-dark"] button.secondary { background-color: #000000; }
+    html[data-theme="hc-dark"] button.danger { color: #ff8a80; border-color: #ff8a80; }
+    html[data-theme="hc-dark"] button.success { color: #69f0ae; border-color: #69f0ae; }
+    html[data-theme="hc-dark"] button:disabled { background: #000; color: #9e9e9e; border-color: #9e9e9e; }
+    html[data-theme="hc-dark"] .game-card { border-width: 4px; }
+    html[data-theme="hc-dark"] .card-panel, html[data-theme="hc-dark"] th, html[data-theme="hc-dark"] td { border-color: #ffeb3b; border-width: 2px; }
+    html[data-theme="hc-dark"] input[type="text"], html[data-theme="hc-dark"] input[type="number"], html[data-theme="hc-dark"] select { background: #000; color: #ffeb3b; border: 3px solid #ffeb3b; }
+    html[data-theme="hc-dark"] .error-msg { color: #ff8a80; }
+    html[data-theme="hc-dark"] .log-panel summary.has-new { color: #ffffff; text-decoration: underline; }
+    html[data-theme="hc-dark"] input[type="range"] { accent-color: #ffeb3b; }
+    html[data-theme="hc-dark"] :focus-visible { outline: 4px solid #00e5ff !important; outline-offset: 3px; }
+
     .sound-guide-list { list-style: none; padding: 0; margin: 8px 0 0; }
     .sound-guide-list li { margin-bottom: 6px; }
     .sound-guide-list button { width: 100%; text-align: left; }
@@ -391,6 +575,76 @@
       </div>
     </section>
 
+    <!-- ตั้งค่าการแสดงผล: ขนาดตัวอักษร ไอคอน สี (จำค่าไว้ในเครื่อง) -->
+    <details id="display-settings" class="display-panel">
+      <summary>ตั้งค่าการแสดงผล (ขนาดตัวอักษร ไอคอน สี)</summary>
+      <div class="display-grid">
+        <div>
+          <label for="ds-text">ขนาดตัวอักษรและปุ่ม</label>
+          <select id="ds-text">
+            <option value="1">ปกติ (100%)</option>
+            <option value="1.25">ใหญ่ (125%)</option>
+            <option value="1.5">ใหญ่มาก (150%)</option>
+            <option value="1.75">ใหญ่พิเศษ (175%)</option>
+            <option value="2">ใหญ่ที่สุด (200%)</option>
+          </select>
+        </div>
+        <div>
+          <label for="ds-icon">ขนาดไอคอนสินค้า</label>
+          <select id="ds-icon">
+            <option value="normal">ปกติ</option>
+            <option value="large">ใหญ่</option>
+            <option value="xlarge">ใหญ่มาก</option>
+          </select>
+        </div>
+        <div>
+          <label for="ds-layout">รูปแบบการ์ดสินค้า</label>
+          <select id="ds-layout">
+            <option value="inline">ไอคอนอยู่หน้าชื่อสินค้า</option>
+            <option value="stacked">ไอคอนอยู่บน ชื่อสินค้าอยู่ใต้ไอคอน</option>
+          </select>
+        </div>
+        <div>
+          <label for="ds-theme">สีและความต่างของสี</label>
+          <select id="ds-theme">
+            <option value="normal">ปกติ (พื้นสว่าง)</option>
+            <option value="dark">โหมดมืด</option>
+            <option value="hc-light">คอนทราสต์สูง: พื้นขาว ตัวอักษรดำ</option>
+            <option value="hc-dark">คอนทราสต์สูง: พื้นดำ ตัวอักษรเหลือง</option>
+          </select>
+        </div>
+        <div>
+          <label for="ds-spacing">ระยะห่างตัวอักษร</label>
+          <select id="ds-spacing">
+            <option value="normal">ปกติ</option>
+            <option value="wide">ห่างขึ้น อ่านง่าย</option>
+          </select>
+        </div>
+        <div class="ds-check">
+          <label><input type="checkbox" id="ds-bold"> ตัวอักษรหนาขึ้น</label>
+        </div>
+        <div>
+          <label for="ds-orient">การหมุนหน้าจอ</label>
+          <select id="ds-orient">
+            <option value="auto">หมุนตามเครื่อง (อัตโนมัติ)</option>
+            <option value="portrait">ล็อกแนวตั้ง</option>
+            <option value="landscape">ล็อกแนวนอน</option>
+          </select>
+        </div>
+        <div>
+          <label for="ds-columns">การจัดหน้าเกม</label>
+          <select id="ds-columns">
+            <option value="auto">อัตโนมัติ (แบ่ง 2 คอลัมน์เมื่อจอแนวนอนกว้างพอ)</option>
+            <option value="single">คอลัมน์เดียวเสมอ</option>
+          </select>
+        </div>
+      </div>
+      <p id="ds-orient-note" role="status" style="margin: 0 0 8px;"></p>
+      <button type="button" id="ds-fullscreen" class="secondary hidden">เปิดโหมดเต็มจอ</button>
+      <button type="button" id="ds-reset" class="secondary">คืนค่าการแสดงผลเริ่มต้น</button>
+      <p style="margin: 6px 0 10px;">ต้องการซูมทั้งหน้า: กด Ctrl และ + บนคอมพิวเตอร์ หรือถ่างสองนิ้วบนมือถือ</p>
+    </details>
+
     <!-- แถบห้องคุยเสียง WebRTC (แสดงเมื่ออยู่ในห้องเกม) -->
     <section id="voice-bar" class="voice-bar hidden" aria-label="ระบบคุยเสียงในห้องเกม">
       <div>
@@ -404,6 +658,12 @@
         </button>
         <button type="button" id="btn-voice-leave" class="danger hidden">วางสายเสียง</button>
         <button type="button" id="btn-voice-unblock" class="secondary hidden">แตะเพื่อเปิดเสียงเพื่อน</button>
+      </div>
+      <!-- วิธีแก้เมื่อไมค์ถูกบล็อก (แสดงตามอุปกรณ์/เบราว์เซอร์ที่ใช้อยู่) -->
+      <div id="voice-help" class="voice-help hidden">
+        <h3 id="voice-help-title" tabindex="-1"></h3>
+        <ol id="voice-help-steps"></ol>
+        <div id="voice-help-actions"></div>
       </div>
     </section>
     <div id="voice-audio-container" aria-hidden="true"></div>
@@ -466,7 +726,12 @@
 
         <h3>ลำดับการเล่นในแต่ละรอบ</h3>
         <ol>
-          <li><strong>เฟสตลาด:</strong> พ่อค้าผลัดกันทีละคน เลือกพักการ์ดบนมือไว้ 0 ถึง 5 ใบ แล้วจั่วใหม่ให้ครบจำนวนเท่าเดิมทีละใบ จะจั่วจากกองกลาง (ไม่เห็นหน้าการ์ด) หรือหยิบใบบนสุดของกองทิ้งซ้าย/ขวาก็ได้ จากนั้นนำการ์ดที่พักไว้ทิ้งลงกองทิ้งกองใดกองหนึ่ง</li>
+          <li><strong>เฟสตลาด:</strong> พ่อค้าเลือกพักการ์ดบนมือไว้ 0 ถึง 5 ใบ แล้วจั่วใหม่ให้ครบจำนวนเท่าเดิมทีละใบ จากนั้นนำการ์ดที่พักไว้ทิ้งลงกองทิ้งกองใดกองหนึ่ง หัวหน้าห้องเลือกรูปแบบได้ตอนเริ่มเกม:
+            <ul>
+              <li><strong>ผลัดกันทีละคน (ตามต้นฉบับ):</strong> จั่วจากกองกลาง (ไม่เห็นหน้าการ์ด) หรือหยิบใบบนสุดของกองทิ้งซ้าย/ขวาก็ได้</li>
+              <li><strong>ทุกคนพร้อมกัน (เร็วกว่า):</strong> ทุกคนเปลี่ยนการ์ดได้ทันทีโดยไม่ต้องรอคิว และเปลี่ยนได้หลายรอบจนพอใจ แล้วกด "เสร็จแล้ว" เฟสตลาดจบเมื่อทุกคนกดเสร็จแล้ว หยิบจากกองทิ้งได้แบบใครกดก่อนได้ก่อน ใบบนสุดของกองทิ้งจึงเปลี่ยนได้ตลอด และถ้ามีคนหยิบตัดหน้าไป ระบบจะแจ้งให้เลือกใหม่</li>
+            </ul>
+          </li>
           <li><strong>เฟสใส่ของลงถุงและประกาศ:</strong> พ่อค้าทุกคนเลือกการ์ด 1 ถึง 5 ใบใส่ถุงพร้อมกัน แล้วประกาศชนิดสินค้าถูกกฎหมาย 1 ชนิด จำนวนที่ประกาศคือจำนวนการ์ดในถุงเสมอ แต่ชนิดสินค้าจะโกหกได้</li>
           <li><strong>เฟสตรวจค้นและต่อรอง:</strong> พ่อค้าเสนอสินบนให้ผู้ตรวจการได้ แล้วผู้ตรวจการเลือกว่าจะปล่อยผ่านหรือเปิดถุงตรวจค้นของพ่อค้าแต่ละคน</li>
           <li><strong>จบรอบ:</strong> เมื่อตัดสินครบทุกถุงแล้ว ทุกคนได้จั่วการ์ดเติมมือให้ครบ 6 ใบ แล้วเปลี่ยนผู้ตรวจการเป็นรอบถัดไป</li>
@@ -507,8 +772,12 @@
         <ul>
           <li>ถ้าหลุดหรือเผลอปิดแอป ให้กลับมาใส่รหัสห้องเดิมและชื่อเดิม แล้วจะได้ที่นั่งเดิมคืน</li>
           <li>ถ้ามีผู้เล่นออฟไลน์จนเกมเดินต่อไม่ได้ หัวหน้าห้องจะมีปุ่มข้ามตาหรือตัดสินแทน ถ้าหัวหน้าห้องหลุดนานเกิน 20 วินาที คนที่เข้าห้องก่อนสุดจะเป็นหัวหน้าห้องแทน</li>
+          <li>ถ้ามีผู้เล่นออฟไลน์ หัวหน้าห้องเลือกได้ว่าจะรอให้กลับมา กดข้ามตาชั่วคราว หรือเตะออกจากห้องไปเลย คนที่ถูกเตะจะถูกเอาออกจากลำดับการเล่นและตารางผู้ตรวจการ การ์ดและสินค้าบนแผงของเขาออกจากเกม และไม่ถูกนับคะแนน (โบนัสราชา/ราชินีคิดเฉพาะคนที่ยังอยู่) เตะได้ทั้งระหว่างเกมและตอนจบเกม</li>
           <li>เมื่อจบเกม หัวหน้าห้องเลือกได้ว่าจะเริ่มเกมใหม่ในห้องเดิมหรือปิดห้อง ผู้เล่นคนอื่นกด "อยากเล่นอีกรอบ" เพื่อบอกหัวหน้าห้องได้ ถ้าไม่มีใครกดอะไรนาน 15 นาที ห้องจะปิดเอง</li>
           <li>เข้าห้องกลางเกมได้ จะได้เล่นเป็นพ่อค้าตั้งแต่เฟสตลาดของรอบถัดไป (หรือรอบนี้เลยถ้ายังอยู่ในเฟสตลาด)</li>
+          <li>ปรับขนาดตัวอักษร ขนาดไอคอน ให้ไอคอนอยู่บนชื่อสินค้า เปลี่ยนสี (โหมดมืด หรือคอนทราสต์สูง) ระยะห่างตัวอักษร ตัวหนา การหมุนหน้าจอ (อัตโนมัติ / ล็อกแนวตั้ง / ล็อกแนวนอน) และการจัดหน้าเกม ได้ที่ "ตั้งค่าการแสดงผล" ด้านบนของทุกหน้าจอ ระบบจำค่าไว้ในเครื่อง</li>
+          <li>เล่นได้ทั้งแนวตั้งและแนวนอน ถ้าจอแนวนอนกว้างพอ หน้าเกมจะแบ่ง 2 คอลัมน์ให้อัตโนมัติ (คำสั่งอยู่ซ้าย สถานะและการ์ดอยู่ขวา) การล็อกการหมุนจากในเกมใช้ได้บน Android ส่วน iPhone/iPad ให้ใช้ปุ่มล็อกการหมุนจอของเครื่อง</li>
+          <li>ถ้าเปิดไมค์ไม่ได้ เกมจะแสดงวิธีอนุญาตไมโครโฟนตามเครื่องและเบราว์เซอร์ที่ใช้อยู่ และพอกดอนุญาตแล้ว จะเข้าร่วมคุยเสียงให้เอง ถ้าเปิดเกมจากใน LINE แล้วไมค์ใช้ไม่ได้ ให้กดปุ่ม "เปิดเกมในเบราว์เซอร์ของเครื่อง" แล้วเกมจะกลับเข้าที่นั่งเดิมให้ ส่วนลิงก์เชิญเพื่อนของเกมจะเปิดนอก LINE ให้อัตโนมัติ</li>
           <li><strong>Alt + M</strong> เปิด/ปิดไมค์ขณะคุยเสียง, <strong>Alt + B</strong> เปิด/ปิดดนตรีพื้นหลัง</li>
           <li>ถ้าใช้โปรแกรมอ่านจอภาพ แนะนำให้ใส่หูฟัง และปรับดนตรีพื้นหลังให้เบาลงหรือปิดได้ที่แถบตั้งค่าเสียงด้านบน</li>
         </ul>
@@ -558,6 +827,19 @@
             </label>
           </div>
         </fieldset>
+        <fieldset>
+          <legend>รูปแบบเฟสตลาด (เปลี่ยนการ์ด)</legend>
+          <div class="radio-group">
+            <label class="radio-option">
+              <input type="radio" name="market-mode" value="turns" checked>
+              <span>ผลัดกันทีละคน (ตามต้นฉบับ หยิบจากกองทิ้งได้)</span>
+            </label>
+            <label class="radio-option">
+              <input type="radio" name="market-mode" value="simultaneous">
+              <span>ทุกคนพร้อมกัน (เร็วกว่า เปลี่ยนได้หลายรอบ กองทิ้งใครกดก่อนได้ก่อน)</span>
+            </label>
+          </div>
+        </fieldset>
         <p id="lobby-mode-hint">หากมีผู้เล่น 6 ถึง 12 คน ระบบจะสุ่มผู้ตรวจการ 2 คนแยกตัดสินใจให้อัตโนมัติ</p>
         <button type="button" id="btn-start-game" class="success">เริ่มเกมและแจกการ์ด</button>
         <button type="button" class="danger btn-close-room hidden">ปิดห้อง</button>
@@ -571,7 +853,7 @@
     <!-- หน้าจอที่ 3: กระดานเล่นเกม -->
     <!-- ========================================== -->
     <section id="view-game" class="hidden" aria-labelledby="heading-game">
-      <div class="card-panel">
+      <div class="card-panel" id="game-info-panel">
         <h2 id="heading-game" tabindex="-1">
           รอบที่ <span id="game-round">1</span> จาก <span id="game-total-rounds">4</span>
         </h2>
@@ -600,27 +882,28 @@
         <p id="action-error" class="error-msg" role="alert"></p>
       </section>
 
-      <!-- เครื่องมือหัวหน้าห้อง: แสดงเมื่อมีผู้เล่นออฟไลน์ที่ทำให้เกมค้าง -->
+      <!-- เครื่องมือหัวหน้าห้อง: แสดงเมื่อมีผู้เล่นออฟไลน์ (ข้ามตาชั่วคราว / รอ / เตะออกจากห้อง) -->
       <section id="host-assist" class="card-panel hidden" aria-labelledby="host-assist-heading">
-        <h3 id="host-assist-heading">มีผู้เล่นออฟไลน์ทำให้เกมเดินต่อไม่ได้</h3>
+        <h3 id="host-assist-heading">มีผู้เล่นออฟไลน์</h3>
         <p id="host-assist-text"></p>
         <button type="button" id="btn-host-assist" class="secondary">เล่นต่อแทนผู้เล่นที่ออฟไลน์</button>
+        <div id="host-kick-list"></div>
       </section>
 
       <!-- สถานะผู้เล่นและแผงสินค้า -->
-      <section class="card-panel" aria-labelledby="status-heading">
+      <section class="card-panel" id="status-panel" aria-labelledby="status-heading">
         <h3 id="status-heading">สถานะผู้เล่นและแผงสินค้า</h3>
         <div id="players-status-container" class="table-wrap"></div>
       </section>
 
       <!-- การ์ดบนมือของฉัน -->
-      <section class="card-panel" aria-labelledby="hand-heading">
+      <section class="card-panel" id="hand-panel" aria-labelledby="hand-heading">
         <h3 id="hand-heading">การ์ดบนมือของคุณ (<span id="hand-count">0</span> ใบ)</h3>
         <ul id="my-hand-list" class="hand-grid"></ul>
       </section>
 
       <!-- ประวัติเหตุการณ์ (พับเก็บไว้ก่อน กดที่หัวข้อเพื่อเปิดดู) -->
-      <section class="card-panel log-panel" aria-label="บันทึกเหตุการณ์">
+      <section class="card-panel log-panel" id="log-panel" aria-label="บันทึกเหตุการณ์">
         <details id="log-details">
           <summary id="log-summary"><span id="log-summary-text">บันทึกเหตุการณ์ (ยังไม่มี)</span></summary>
           <ul id="game-log-list" class="log-list"></ul>
@@ -647,6 +930,7 @@
         <div id="gameover-host-actions" class="hidden">
           <button type="button" id="btn-play-again" class="success">เริ่มเกมใหม่ในห้องเดิม</button>
           <button type="button" class="danger btn-close-room hidden">ปิดห้อง</button>
+          <div id="gameover-kick-list"></div>
         </div>
         <button type="button" id="btn-ready-again" class="hidden" aria-pressed="false">อยากเล่นอีกรอบ</button>
         <p id="gameover-idle-text" style="margin: 6px 0 0; color: var(--muted);"></p>
@@ -753,11 +1037,17 @@
       { urls: "turns:global.relay.metered.ca:443?transport=tcp", username: TURN_USERNAME, credential: TURN_PASSWORD }
     ];
 
-    const urlPid = (new URLSearchParams(location.search).get("pid") || "").replace(/\W/g, "").slice(0, 12);
+    const pageParams = new URLSearchParams(location.search);
+    const urlPid = (pageParams.get("pid") || "").replace(/\W/g, "").slice(0, 12);
+    // handoff = ย้ายจากเบราว์เซอร์ในแอป (เช่น LINE) มาเปิดในเบราว์เซอร์ของเครื่อง โดยใช้ที่นั่งเดิม
+    const handoffId = (pageParams.get("handoff") || "").replace(/\W/g, "").slice(0, 12);
     let myPlayerId = null;
     try { myPlayerId = localStorage.getItem("sheriff_player_id"); } catch (e) {}
     if (!myPlayerId) myPlayerId = "p_" + Math.random().toString(36).substring(2, 9);
-    if (urlPid) myPlayerId = "p_" + urlPid;
+    if (handoffId) {
+      myPlayerId = "p_" + handoffId;
+      try { localStorage.setItem("sheriff_player_id", myPlayerId); } catch (e) {}
+    } else if (urlPid) myPlayerId = "p_" + urlPid;
     else try { localStorage.setItem("sheriff_player_id", myPlayerId); } catch (e) {}
 
     let currentRoomCode = null;
@@ -1768,9 +2058,260 @@
 
     refreshAudioControls();
 
+    // ---------- ตั้งค่าการแสดงผล (ขนาดตัวอักษร ไอคอน สี ระยะห่าง ตัวหนา) ----------
+    const DISPLAY_KEY = "sheriff_display";
+    const DISPLAY_DEFAULTS = { text: "1", icon: "normal", layout: "inline", theme: "normal", spacing: "normal", bold: false, orient: "auto", columns: "auto" };
+    const THEME_COLORS = { normal: "#1d4ed8", dark: "#0f172a", "hc-light": "#ffffff", "hc-dark": "#000000" };
+
+    function readDisplay() {
+      try { return Object.assign({}, DISPLAY_DEFAULTS, JSON.parse(localStorage.getItem(DISPLAY_KEY) || "{}") || {}); }
+      catch (e) { return Object.assign({}, DISPLAY_DEFAULTS); }
+    }
+
+    function applyDisplay(s) {
+      const h = document.documentElement;
+      h.style.fontSize = (parseFloat(s.text) * 100) + "%";
+      h.setAttribute("data-icon", s.icon);
+      h.setAttribute("data-layout", s.layout);
+      h.setAttribute("data-theme", s.theme);
+      h.setAttribute("data-spacing", s.spacing);
+      h.toggleAttribute("data-bold", !!s.bold);
+      h.setAttribute("data-columns", s.columns || "auto");
+      const meta = document.querySelector('meta[name="theme-color"]');
+      if (meta) meta.setAttribute("content", THEME_COLORS[s.theme] || THEME_COLORS.normal);
+    }
+
+    const displayControls = {
+      text: document.getElementById("ds-text"),
+      icon: document.getElementById("ds-icon"),
+      layout: document.getElementById("ds-layout"),
+      theme: document.getElementById("ds-theme"),
+      spacing: document.getElementById("ds-spacing"),
+      bold: document.getElementById("ds-bold"),
+      orient: document.getElementById("ds-orient"),
+      columns: document.getElementById("ds-columns")
+    };
+
+    function syncDisplayControls(s) {
+      Object.entries(displayControls).forEach(([k, el]) => {
+        if (el.type === "checkbox") el.checked = !!s[k]; else el.value = s[k];
+      });
+    }
+
+    function onDisplayChange(ev) {
+      const s = readDisplay();
+      Object.entries(displayControls).forEach(([k, el]) => { s[k] = el.type === "checkbox" ? el.checked : el.value; });
+      try { localStorage.setItem(DISPLAY_KEY, JSON.stringify(s)); } catch (e) {}
+      applyDisplay(s);
+      const el = ev.currentTarget;
+      announce(el.type === "checkbox"
+        ? (el.checked ? "เปิดตัวอักษรหนาแล้ว" : "ปิดตัวอักษรหนาแล้ว")
+        : `เปลี่ยนเป็น ${el.options[el.selectedIndex].text} แล้ว`);
+    }
+
+    // ---------- การหมุนหน้าจอและโหมดเต็มจอ ----------
+    // ล็อกการหมุนได้บน Android (Chrome/แอปที่ติดตั้ง) ส่วน iPhone/iPad และคอมพิวเตอร์ เบราว์เซอร์ไม่อนุญาต
+    const ORIENT_TEXT = { portrait: "แนวตั้ง", landscape: "แนวนอน" };
+    const isStandaloneApp = () => (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) || window.navigator.standalone === true;
+    const canFullscreen = () => !!(document.documentElement.requestFullscreen && document.fullscreenEnabled !== false);
+
+    async function applyOrientation(mode, fromUser) {
+      const note = document.getElementById("ds-orient-note");
+      const so = screen.orientation;
+      if (mode === "auto") {
+        try { if (so && so.unlock) so.unlock(); } catch (e) {}
+        if (fromUser) note.textContent = "หน้าจอหมุนตามเครื่องแล้ว (ถ้ายังไม่หมุน ให้ปิดการล็อกการหมุนจอในการตั้งค่าของเครื่อง)";
+        return;
+      }
+      if (!so || !so.lock) {
+        if (fromUser) note.textContent = `อุปกรณ์หรือเบราว์เซอร์นี้ไม่ให้เกมล็อกการหมุนเอง (เช่น iPhone, iPad, คอมพิวเตอร์) ให้หมุนเครื่องเป็น${ORIENT_TEXT[mode]} แล้วเปิดล็อกการหมุนจอของเครื่องแทน`;
+        return;
+      }
+      try {
+        // ในเบราว์เซอร์ปกติ ต้องเข้าโหมดเต็มจอก่อนจึงจะล็อกการหมุนได้ (แอปที่ติดตั้งแล้วล็อกได้เลย)
+        if (fromUser && !isStandaloneApp() && !document.fullscreenElement && canFullscreen()) {
+          await document.documentElement.requestFullscreen();
+        }
+        await so.lock(mode);
+        if (fromUser) note.textContent = `ล็อกหน้าจอเป็น${ORIENT_TEXT[mode]}แล้ว` + (document.fullscreenElement ? " (เปิดโหมดเต็มจอให้ด้วย เพราะเบราว์เซอร์ต้องเต็มจอก่อนจึงล็อกได้ กดออกจากเต็มจอเมื่อไรการล็อกจะหลุด)" : "");
+      } catch (e) {
+        if (fromUser) note.textContent = `เบราว์เซอร์นี้ล็อกหน้าจอเป็น${ORIENT_TEXT[mode]}ไม่ได้ ให้หมุนเครื่องเอง แล้วเปิดล็อกการหมุนจอของเครื่องแทน หรือติดตั้งเกมเป็นแอปแล้วลองใหม่`;
+      }
+    }
+
+    const fsBtn = document.getElementById("ds-fullscreen");
+    function refreshFullscreenBtn() {
+      fsBtn.classList.toggle("hidden", !canFullscreen());
+      fsBtn.textContent = document.fullscreenElement ? "ออกจากโหมดเต็มจอ" : "เปิดโหมดเต็มจอ";
+    }
+    fsBtn.addEventListener("click", async () => {
+      try {
+        if (document.fullscreenElement) await document.exitFullscreen();
+        else {
+          await document.documentElement.requestFullscreen();
+          const s = readDisplay();
+          if (s.orient !== "auto") applyOrientation(s.orient, false);
+        }
+      } catch (e) {
+        announce("เปิดโหมดเต็มจอไม่ได้ในเบราว์เซอร์นี้", true);
+      }
+    });
+    document.addEventListener("fullscreenchange", () => {
+      refreshFullscreenBtn();
+      announce(document.fullscreenElement ? "เปิดโหมดเต็มจอแล้ว" : "ออกจากโหมดเต็มจอแล้ว");
+    });
+
+    Object.values(displayControls).forEach(el => el.addEventListener("change", onDisplayChange));
+    displayControls.orient.addEventListener("change", () => applyOrientation(displayControls.orient.value, true));
+    document.getElementById("ds-reset").addEventListener("click", () => {
+      try { localStorage.removeItem(DISPLAY_KEY); } catch (e) {}
+      const s = Object.assign({}, DISPLAY_DEFAULTS);
+      applyDisplay(s);
+      syncDisplayControls(s);
+      applyOrientation("auto", false);
+      document.getElementById("ds-orient-note").textContent = "";
+      announce("คืนค่าการแสดงผลเริ่มต้นแล้ว");
+    });
+
+    (function initDisplay() {
+      const s = readDisplay();
+      applyDisplay(s);
+      syncDisplayControls(s);
+      refreshFullscreenBtn();
+      // แอปที่ติดตั้งแล้วล็อกการหมุนได้ทันทีตอนเปิด (ในเบราว์เซอร์ต้องรอผู้ใช้เลือกใหม่ เพราะต้องเต็มจอ)
+      if (s.orient !== "auto" && isStandaloneApp()) applyOrientation(s.orient, false);
+    })();
+
     // ==========================================
     // 4. ระบบคุยเสียง WebRTC ผ่าน Firebase (พร้อมคีย์ลัด Alt+M)
     // ==========================================
+
+    // ---------- ช่วยเหลือเรื่องสิทธิ์ไมโครโฟน (บอกวิธีแก้ตามอุปกรณ์ที่ใช้อยู่) ----------
+    // หมายเหตุ: ไม่มีเว็บไหนข้ามการบล็อกไมค์ของเบราว์เซอร์/ระบบได้ ทำได้แค่บอกวิธีอนุญาตให้ถูกจุด
+    function detectEnv() {
+      const ua = navigator.userAgent || "";
+      const inApp = /Line\//i.test(ua) ? "line"
+        : /FBAN|FBAV|FB_IAB|Messenger/i.test(ua) ? "facebook"
+        : /Instagram/i.test(ua) ? "instagram"
+        : /MicroMessenger/i.test(ua) ? "wechat"
+        : /TikTok|musical_ly|Bytedance/i.test(ua) ? "tiktok" : null;
+      const os = /iPhone|iPad|iPod/i.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1) ? "ios"
+        : /Android/i.test(ua) ? "android"
+        : /Windows/i.test(ua) ? "windows"
+        : /Macintosh/i.test(ua) ? "mac" : "other";
+      const browser = /Edg\//.test(ua) ? "edge" : /SamsungBrowser/.test(ua) ? "samsung" : /Firefox|FxiOS/.test(ua) ? "firefox"
+        : /Chrome|CriOS/.test(ua) ? "chrome" : /Safari/.test(ua) ? "safari" : "other";
+      return { inApp, os, browser };
+    }
+
+    async function queryMicPermission() {
+      try {
+        if (navigator.permissions && navigator.permissions.query) return await navigator.permissions.query({ name: "microphone" });
+      } catch (e) {}
+      return null;
+    }
+
+    // ลิงก์สำหรับเปิดเกมในเบราว์เซอร์ของเครื่อง โดยกลับเข้าที่นั่งเดิม (LINE จะเปิดนอกแอปให้เองเพราะ openExternalBrowser=1)
+    function handoffUrl() {
+      const u = new URL(location.origin + location.pathname);
+      if (currentRoomCode) u.searchParams.set("room", currentRoomCode);
+      u.searchParams.set("handoff", myPlayerId.replace(/^p_/, ""));
+      u.searchParams.set("openExternalBrowser", "1");
+      return u.toString();
+    }
+
+    function micHelpSteps(env, kind) {
+      const appName = { line: "LINE", facebook: "Facebook / Messenger", instagram: "Instagram", wechat: "WeChat", tiktok: "TikTok" }[env.inApp];
+      if (kind === "notfound") return {
+        title: "ไม่พบไมโครโฟนในเครื่องนี้",
+        steps: ["เสียบหูฟังที่มีไมค์ หรือไมโครโฟนให้แน่น", "ถ้าใช้คอมพิวเตอร์ ตรวจว่าไมค์ไม่ได้ถูกปิดในการตั้งค่าเสียงของเครื่อง", "กดปุ่ม \"เข้าร่วมคุยเสียง\" อีกครั้ง"] };
+      if (kind === "busy") return {
+        title: "ไมโครโฟนกำลังถูกโปรแกรมอื่นใช้อยู่",
+        steps: ["ปิดหรือวางสายโปรแกรมที่ใช้ไมค์อยู่ เช่น Zoom, Discord, Teams, การโทร LINE", "ถ้าเปิดเกมไว้หลายแท็บ ให้ปิดแท็บอื่น", "กดปุ่ม \"เข้าร่วมคุยเสียง\" อีกครั้ง"] };
+      if (env.inApp) return {
+        title: `${appName} ไม่อนุญาตให้หน้าเว็บใช้ไมโครโฟน`,
+        steps: env.inApp === "line"
+          ? ["กดปุ่ม \"เปิดเกมในเบราว์เซอร์ของเครื่อง\" ด้านล่าง เกมจะเปิดใน Chrome หรือ Safari และกลับเข้าที่นั่งเดิมให้เอง", "เมื่อเบราว์เซอร์ถามสิทธิ์ไมโครโฟน ให้กด \"อนุญาต\"", "ครั้งหน้า ให้กดลิงก์เชิญจากเพื่อนได้เลย ลิงก์เชิญของเกมจะเปิดนอก LINE ให้อัตโนมัติ"]
+          : [`กดปุ่ม ⋯ หรือ ⋮ ที่มุมบนของ ${appName} แล้วเลือก "เปิดในเบราว์เซอร์" (Open in browser)`, "หรือกดปุ่ม \"คัดลอกลิงก์\" ด้านล่าง แล้ววางในช่องที่อยู่ของ Chrome หรือ Safari เกมจะกลับเข้าที่นั่งเดิมให้เอง", "เมื่อเบราว์เซอร์ถามสิทธิ์ไมโครโฟน ให้กด \"อนุญาต\""] };
+      if (kind === "unsupported") return {
+        title: "เบราว์เซอร์นี้ใช้ไมโครโฟนไม่ได้",
+        steps: ["เปิดเกมด้วย Chrome, Edge, Safari หรือ Firefox รุ่นล่าสุด", "หรือกดปุ่ม \"คัดลอกลิงก์\" ด้านล่าง แล้วไปวางในเบราว์เซอร์อื่น เกมจะกลับเข้าที่นั่งเดิมให้เอง"] };
+      // kind === "denied": ถูกบล็อกสิทธิ์ไมค์
+      const after = "เมื่ออนุญาตแล้ว เกมจะเข้าร่วมคุยเสียงให้เอง (ถ้ายังไม่เข้า ให้กดปุ่ม \"เข้าร่วมคุยเสียง\" อีกครั้ง หรือรีเฟรชหน้า)";
+      if (env.os === "ios") return {
+        title: "ไมโครโฟนถูกบล็อกไว้ใน iPhone / iPad",
+        steps: [env.browser === "safari" || env.browser === "other"
+          ? "กดปุ่ม \"aA\" หรือไอคอนทางซ้ายของช่องที่อยู่เว็บ → การตั้งค่าเว็บไซต์ → ไมโครโฟน → เลือก \"อนุญาต\""
+          : "เปิดแอปการตั้งค่าของเครื่อง → เลื่อนหาแอปเบราว์เซอร์ที่ใช้อยู่ (เช่น Chrome) → เปิดสวิตช์ \"ไมโครโฟน\"",
+          "ถ้ายังไม่ได้: แอปการตั้งค่า → Safari → ไมโครโฟน → เลือก \"ถาม\" หรือ \"อนุญาต\"", after] };
+      if (env.os === "android") return {
+        title: "ไมโครโฟนถูกบล็อกไว้ในมือถือ Android",
+        steps: ["กดไอคอนทางซ้ายของช่องที่อยู่เว็บ (รูปแม่กุญแจหรือรูปปรับแต่ง) → สิทธิ์ หรือ การตั้งค่าเว็บไซต์ → ไมโครโฟน → เลือก \"อนุญาต\"",
+          "ถ้ายังไม่ได้: เปิดการตั้งค่าของเครื่อง → แอป → Chrome (หรือเบราว์เซอร์ที่ใช้) → สิทธิ์ → ไมโครโฟน → เลือก \"อนุญาตขณะใช้แอป\"", after] };
+      if (env.browser === "firefox") return {
+        title: "ไมโครโฟนถูกบล็อกไว้ใน Firefox",
+        steps: ["กดไอคอนไมโครโฟนที่มีขีดฆ่า ทางซ้ายของช่องที่อยู่เว็บ → กดกากบาทเพื่อเลิกบล็อก", "กดปุ่ม \"เข้าร่วมคุยเสียง\" อีกครั้ง แล้วเลือก \"อนุญาต\"",
+          env.os === "windows" ? "ถ้ายังไม่ได้: การตั้งค่า Windows → ความเป็นส่วนตัวและความปลอดภัย → ไมโครโฟน → เปิด \"การเข้าถึงไมโครโฟน\" และ \"ให้แอปบนเดสก์ท็อปเข้าถึงไมโครโฟนได้\"" : after] };
+      if (env.browser === "safari") return {
+        title: "ไมโครโฟนถูกบล็อกไว้ใน Safari",
+        steps: ["เมนู Safari → การตั้งค่า (Settings) → เว็บไซต์ → ไมโครโฟน → หาเว็บนี้แล้วเลือก \"อนุญาต\"",
+          "ถ้ายังไม่ได้: การตั้งค่าระบบของ Mac → ความเป็นส่วนตัวและความปลอดภัย → ไมโครโฟน → เปิดให้ Safari", after] };
+      // Chrome / Edge / อื่น ๆ บนคอมพิวเตอร์
+      const bname = env.browser === "edge" ? "Edge" : "Chrome";
+      return {
+        title: `ไมโครโฟนถูกบล็อกไว้ใน ${bname}`,
+        steps: [`กดไอคอนทางซ้ายของช่องที่อยู่เว็บ (รูปปรับแต่งหรือแม่กุญแจ) → หาหัวข้อ "ไมโครโฟน" → เปลี่ยนเป็น "อนุญาต"`,
+          `ถ้าที่ช่องที่อยู่เว็บมีไอคอนไมค์ขีดฆ่า ให้กดไอคอนนั้น → เลือก "อนุญาตให้เว็บนี้ใช้ไมโครโฟนเสมอ" → เสร็จสิ้น`,
+          `ถ้า ${bname} ไม่ถามสิทธิ์เลย: เปิด ${bname} การตั้งค่า → ความเป็นส่วนตัวและความปลอดภัย → การตั้งค่าเว็บไซต์ → ไมโครโฟน → ลบเว็บนี้ออกจากรายการ "ไม่อนุญาต" และเลือกไมค์ที่ถูกตัวด้านบน`,
+          env.os === "windows"
+            ? "ถ้ายังไม่ได้: การตั้งค่า Windows → ความเป็นส่วนตัวและความปลอดภัย → ไมโครโฟน → เปิด \"การเข้าถึงไมโครโฟน\" และ \"ให้แอปบนเดสก์ท็อปเข้าถึงไมโครโฟนได้\""
+            : env.os === "mac" ? `ถ้ายังไม่ได้: การตั้งค่าระบบของ Mac → ความเป็นส่วนตัวและความปลอดภัย → ไมโครโฟน → เปิดให้ ${bname}` : after,
+          after] };
+    }
+
+    function showMicHelp(env, kind) {
+      const { title, steps } = micHelpSteps(env, kind);
+      const box = document.getElementById("voice-help");
+      document.getElementById("voice-help-title").textContent = title;
+      const ol = document.getElementById("voice-help-steps");
+      ol.innerHTML = "";
+      [...new Set(steps)].forEach(s => { const li = document.createElement("li"); li.textContent = s; ol.appendChild(li); });
+      const actions = document.getElementById("voice-help-actions");
+      actions.innerHTML = "";
+      if (env.inApp || kind === "unsupported") {
+        if (env.inApp === "line") {
+          const a = document.createElement("a");
+          a.className = "button-link";
+          a.href = handoffUrl();
+          a.textContent = "เปิดเกมในเบราว์เซอร์ของเครื่อง (ที่นั่งเดิม)";
+          actions.appendChild(a);
+        }
+        const copy = document.createElement("button");
+        copy.type = "button";
+        copy.className = "secondary";
+        copy.textContent = "คัดลอกลิงก์ไปเปิดในเบราว์เซอร์";
+        copy.addEventListener("click", () => {
+          const url = handoffUrl();
+          (navigator.clipboard ? navigator.clipboard.writeText(url) : Promise.reject())
+            .then(() => announce("คัดลอกลิงก์แล้ว นำไปวางในช่องที่อยู่ของ Chrome หรือ Safari ได้เลย", true))
+            .catch(() => { window.prompt("คัดลอกลิงก์นี้ไปเปิดในเบราว์เซอร์", url); });
+        });
+        actions.appendChild(copy);
+      }
+      const retry = document.createElement("button");
+      retry.type = "button";
+      retry.textContent = "ลองเข้าร่วมคุยเสียงอีกครั้ง";
+      retry.addEventListener("click", () => VoiceChat.join());
+      actions.appendChild(retry);
+      box.classList.remove("hidden");
+      document.getElementById("voice-status-text").textContent = title;
+      announce(`${title} วิธีแก้แสดงอยู่ใต้ปุ่มเข้าร่วมคุยเสียง`, true);
+      document.getElementById("voice-help-title").focus();
+    }
+
+    function hideMicHelp() {
+      document.getElementById("voice-help").classList.add("hidden");
+    }
     const nameOf = (pid) =>
       (currentRoomData && currentRoomData.players && currentRoomData.players[pid] && currentRoomData.players[pid].name) || "เพื่อน";
 
@@ -1829,13 +2370,20 @@
       async join() {
         if (this.active || this.joining) return;
         if (!currentRoomCode) { this.setStatus("ต้องอยู่ในห้องเกมก่อน จึงจะเข้าห้องคุยเสียงได้"); return; }
-        const ua = navigator.userAgent || "";
-        if (/Line\/|FBAN|FBAV|Instagram|MicroMessenger/i.test(ua)) {
-          this.setStatus("เบราว์เซอร์ในแอป (LINE, Facebook, Instagram) มักบล็อกไมโครโฟน กรุณาเปิดลิงก์นี้ด้วย Chrome หรือ Safari แทน");
+        hideMicHelp();
+        const env = detectEnv();
+        // ไม่มีระบบไมค์ให้ใช้เลย (เช่น เบราว์เซอร์ในแอปบางตัว หรือไม่ใช่ https)
+        if (!window.isSecureContext || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          SoundFX.error();
+          showMicHelp(env, "unsupported");
           return;
         }
-        if (!window.isSecureContext || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-          this.setStatus("เบราว์เซอร์นี้ใช้ไมโครโฟนไม่ได้ (ต้องเปิดผ่าน https และไม่ใช่เบราว์เซอร์ในแอป) กรุณาเปิดด้วย Chrome หรือ Safari");
+        // รู้ล่วงหน้าว่าถูกบล็อกไว้ → บอกวิธีแก้ทันที และเข้าสายให้เองเมื่อผู้ใช้กดอนุญาต
+        const perm = await queryMicPermission();
+        if (perm && perm.state === "denied") {
+          SoundFX.error();
+          showMicHelp(env, "denied");
+          this.watchPermission(perm);
           return;
         }
         this.joining = true;
@@ -1846,14 +2394,20 @@
         } catch (err) {
           this.joining = false;
           SoundFX.error();
-          const reasons = {
-            NotAllowedError: "สิทธิ์ไมโครโฟนถูกปฏิเสธหรือถูกบล็อก ให้กดไอคอนแม่กุญแจข้างช่องที่อยู่เว็บ เปลี่ยนไมโครโฟนเป็นอนุญาต แล้วกดเข้าร่วมใหม่",
-            NotFoundError: "ไม่พบไมโครโฟนในอุปกรณ์นี้",
-            NotReadableError: "ไมโครโฟนกำลังถูกโปรแกรมอื่นใช้อยู่"
-          };
-          this.setStatus(reasons[err && err.name] || `เปิดไมโครโฟนไม่สำเร็จ (${err && err.name})`);
+          const name = err && err.name;
+          if (name === "NotAllowedError" || name === "SecurityError" || name === "PermissionDeniedError") {
+            showMicHelp(env, "denied");
+            if (perm) this.watchPermission(perm);
+          } else if (name === "NotFoundError" || name === "DevicesNotFoundError" || name === "OverconstrainedError") {
+            showMicHelp(env, "notfound");
+          } else if (name === "NotReadableError" || name === "TrackStartError" || name === "AbortError") {
+            showMicHelp(env, "busy");
+          } else {
+            showMicHelp(env, "unsupported");
+          }
           return;
         }
+        hideMicHelp();
 
         await this.loadIceServers();
         if (!currentRoomCode) {
@@ -1882,6 +2436,18 @@
         }
         this.attachListeners();
         writeSession({ voice: true });
+      },
+
+      // เฝ้าดูสิทธิ์ไมค์: พอผู้ใช้ไปเปลี่ยนเป็น "อนุญาต" ในการตั้งค่าเบราว์เซอร์ ให้เข้าสายคุยเสียงเองทันที
+      watchPermission(perm) {
+        if (!perm || perm._watched) return;
+        perm._watched = true;
+        perm.onchange = () => {
+          if (perm.state === "granted" && !this.active && !this.joining && currentRoomCode) {
+            announce("ได้รับสิทธิ์ใช้ไมโครโฟนแล้ว กำลังเข้าร่วมคุยเสียงให้", true);
+            this.join();
+          }
+        };
       },
 
       // ลงทะเบียนตัวเองในห้องเสียง (เรียกซ้ำอัตโนมัติได้ หากเน็ตหลุดแล้วเซิร์ฟเวอร์ลบชื่อเราออก)
@@ -2368,6 +2934,20 @@
       return order.filter(pid => !sIds.includes(pid));
     }
 
+    // ตลาดแบบทุกคนพร้อมกัน: พ่อค้าทุกคนเปลี่ยนการ์ดได้ทันที จั่วจากกองกลางอย่างเดียว (กันการแย่งกองทิ้ง)
+    const isSimMarket = (room) => room.marketMode === "simultaneous";
+    // พ่อค้าคนนี้ทำรายการในเฟสตลาดตอนนี้ได้ไหม
+    function canActInMarket(room, pid) {
+      if (room.phase !== "market" || !room.players || !room.players[pid]) return false;
+      const merchants = getMerchants(room);
+      if (!merchants.includes(pid)) return false;
+      if (isSimMarket(room)) return !(room.players[pid] && room.players[pid].marketDone);
+      return merchants[room.marketTurnIndex || 0] === pid;
+    }
+    function marketDoneIds(room) {
+      return getMerchants(room).filter(pid => room.players[pid] && room.players[pid].marketDone);
+    }
+
     // สร้างตารางสุ่มผู้ตรวจการ (น้อยกว่า 6 คน = 1 ผู้ตรวจการ, 6 คนขึ้นไป = สุ่มคู่ 2 ผู้ตรวจการ)
     function buildSheriffSchedule(playerIds, roundsPerPlayer) {
       const n = playerIds.length;
@@ -2582,6 +3162,9 @@
       const inviteUrl = new URL(window.location.href);
       inviteUrl.searchParams.set("room", currentRoomCode);
       inviteUrl.searchParams.delete("pid");
+      inviteUrl.searchParams.delete("handoff");
+      // ถ้าเพื่อนกดลิงก์ใน LINE จะเปิดในเบราว์เซอร์ของเครื่องทันที (ใช้ไมค์ได้) แอปอื่นจะไม่สนใจค่านี้
+      inviteUrl.searchParams.set("openExternalBrowser", "1");
       navigator.clipboard.writeText(inviteUrl.toString()).then(() => {
         SoundFX.coin();
         announce(`คัดลอกลิงก์เชิญเข้าห้อง ${currentRoomCode} ลงคลิปบอร์ดแล้ว ส่งให้เพื่อนกดเข้าเล่นได้เลยครับ`);
@@ -2671,6 +3254,8 @@
       if (!currentRoomCode || startingGame) return;
       const btn = ev && ev.currentTarget;
       const roundsRadio = document.querySelector('input[name="rounds-per-player"]:checked');
+      const modeRadio = document.querySelector('input[name="market-mode"]:checked');
+      const marketMode = modeRadio && modeRadio.value === "simultaneous" ? "simultaneous" : "turns";
       startingGame = true;
       if (btn) btn.disabled = true;
       let tooFew = false;
@@ -2679,7 +3264,7 @@
         await roomTx(room => {
           tooFew = false;
           if (room.hostId !== myPlayerId || room.status === "playing") return;
-          const r = buildNewGame(room, roundsRadio ? parseInt(roundsRadio.value, 10) : null);
+          const r = buildNewGame(room, roundsRadio ? parseInt(roundsRadio.value, 10) : null, marketMode);
           if (!r) { tooFew = true; return; }
           return r;
         });
@@ -2693,7 +3278,7 @@
       }
     }
 
-    function buildNewGame(room, roundsChoice) {
+    function buildNewGame(room, roundsChoice, marketMode) {
       // คนที่กดออกจากห้องไปแล้ว (left) ไม่ถูกนับเข้าเกมใหม่
       const playerIds = Object.keys(room.players || {}).filter(id => room.players[id] && room.players[id].name && !room.players[id].left);
       if (playerIds.length < 2) return null;
@@ -2721,9 +3306,13 @@
       const firstSheriffs = sheriffSchedule[0];
       const sheriffNames = firstSheriffs.map(id => updatedPlayers[id].name).join(" และ ");
       const modeText = firstSheriffs.length === 2 ? "โหมดผู้ตรวจการ 2 คนแยกตัดสินใจ" : "โหมดผู้ตรวจการ 1 คน";
-      const logs = [`เกมเริ่มต้นแล้ว (${modeText})! เล่นทั้งหมด ${sheriffSchedule.length} รอบ ผู้ตรวจการรอบที่ 1 คือ ${sheriffNames} เริ่มเฟสตลาด`];
+      const simultaneous = marketMode === "simultaneous";
+      const marketText = simultaneous ? "ตลาดแบบทุกคนพร้อมกัน" : "ตลาดแบบผลัดกัน";
+      const logs = [`เกมเริ่มต้นแล้ว (${modeText}, ${marketText})! เล่นทั้งหมด ${sheriffSchedule.length} รอบ ผู้ตรวจการรอบที่ 1 คือ ${sheriffNames} เริ่มเฟสตลาด` +
+        (simultaneous ? " พ่อค้าทุกคนเปลี่ยนการ์ดพร้อมกันได้เลย" : "")];
 
       return Object.assign(room, {
+        marketMode: simultaneous ? "simultaneous" : "turns",
         finishedAt: null,
         playAgain: null,
         status: "playing",
@@ -2794,7 +3383,7 @@
           iWasInRoom = true;
         } else if (iWasInRoom) {
           // ที่นั่งของเรามีคนรับไปแล้ว (เช่น เข้าห้องด้วยชื่อเดิมจากอีกเครื่อง)
-          leaveRoom({ skipDb: true, urgent: true, message: "คุณไม่ได้อยู่ในห้องนี้แล้ว อาจเพราะมีการเข้าห้องด้วยชื่อเดิมจากอีกเครื่อง" });
+          leaveRoom({ skipDb: true, urgent: true, message: "คุณไม่ได้อยู่ในห้องนี้แล้ว อาจเพราะหัวหน้าห้องนำคุณออกจากห้องระหว่างที่หลุดการเชื่อมต่อ หรือมีการเข้าห้องด้วยชื่อเดิมจากอีกเครื่อง" });
           return;
         }
         currentRoomData = room;
@@ -2888,7 +3477,11 @@
       const merchants = getMerchants(room);
       const sIds = getSheriffIds(room);
       const names = (ids) => ids.map(id => (players[id] && players[id].name) || "-").join(", ");
-      if (room.phase === "market") {
+      if (room.phase === "market" && isSimMarket(room)) {
+        const ids = merchants.filter(pid => isOffline(room, pid) && !players[pid].marketDone);
+        if (ids.length) return { kind: "market", ids,
+          text: `${names(ids)} ออฟไลน์อยู่และยังไม่ได้เปลี่ยนการ์ดในเฟสตลาด`, label: `ข้ามตาตลาดของ ${names(ids)}` };
+      } else if (room.phase === "market") {
         const active = merchants[room.marketTurnIndex || 0];
         if (active && isOffline(room, active)) {
           return { kind: "market", ids: [active],
@@ -2914,20 +3507,170 @@
       return null;
     }
 
+    // ผู้เล่นที่ออฟไลน์อยู่ (หัวหน้าห้องเตะออกได้) ไม่รวมตัวหัวหน้าห้องเอง
+    function offlinePlayerIds(room) {
+      const ids = room.status === "playing" ? (room.playerOrder || []) : Object.keys(room.players || {});
+      return ids.filter(pid => pid !== myPlayerId && room.players[pid] && isOffline(room, pid));
+    }
+
+    // ปุ่ม "เตะ ... ออกจากห้อง" ของผู้เล่นที่ออฟไลน์ (ใช้ทั้งระหว่างเกมและหน้าจบเกม)
+    function renderKickButtons(container, room) {
+      const ids = room.hostId === myPlayerId ? offlinePlayerIds(room) : [];
+      const sig = ids.map(pid => pid + ":" + room.players[pid].name).join("|");
+      if (container._sig === sig) return;
+      container._sig = sig;
+      container.innerHTML = "";
+      ids.forEach(pid => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "danger";
+        btn.textContent = `เตะ ${room.players[pid].name} ออกจากห้อง`;
+        btn.addEventListener("click", () => confirmKick(pid));
+        container.appendChild(btn);
+      });
+    }
+
     function renderHostAssist(room) {
       const panel = document.getElementById("host-assist");
-      const blocker = room.hostId === myPlayerId ? findBlocker(room) : null;
-      if (!blocker) { panel.classList.add("hidden"); panel.dataset.sig = ""; return; }
-      const sig = `${room.round}|${room.phase}|${blocker.kind}|${blocker.ids.join(",")}`;
+      const isHost = room.hostId === myPlayerId;
+      const blocker = isHost ? findBlocker(room) : null;
+      const offline = isHost ? offlinePlayerIds(room) : [];
+      renderKickButtons(document.getElementById("host-kick-list"), room);
+      if (!blocker && !offline.length) { panel.classList.add("hidden"); panel.dataset.sig = ""; return; }
+      const sig = `${room.round}|${room.phase}|${blocker ? blocker.kind + ":" + blocker.ids.join(",") : "-"}|${offline.join(",")}`;
       if (panel.dataset.sig === sig && !panel.classList.contains("hidden")) return; // ไม่วาดใหม่ กันโฟกัสหลุด
       panel.dataset.sig = sig;
-      document.getElementById("host-assist-text").textContent = `${blocker.text} คุณเป็นหัวหน้าห้อง จะรอให้กลับมา หรือกดปุ่มด้านล่างเพื่อเล่นต่อก็ได้`;
+      const offNames = offline.map(pid => room.players[pid].name).join(", ");
+      document.getElementById("host-assist-heading").textContent = blocker ? "มีผู้เล่นออฟไลน์ทำให้เกมเดินต่อไม่ได้" : "มีผู้เล่นออฟไลน์";
+      document.getElementById("host-assist-text").textContent = blocker
+        ? `${blocker.text} คุณเป็นหัวหน้าห้อง จะรอให้กลับมา กดข้ามตาชั่วคราว หรือเตะออกจากห้องไปเลยก็ได้ (คนที่ถูกเตะจะไม่ถูกนับคะแนน)`
+        : `${offNames} ออฟไลน์อยู่ จะรอให้กลับมาเล่นต่อ หรือเตะออกจากห้องไปเลยก็ได้ (คนที่ถูกเตะจะไม่ถูกนับคะแนน)`;
       const btn = document.getElementById("btn-host-assist");
-      btn.textContent = blocker.label;
-      btn.disabled = false;
+      btn.classList.toggle("hidden", !blocker);
+      if (blocker) { btn.textContent = blocker.label; btn.disabled = false; }
       const wasHidden = panel.classList.contains("hidden");
       panel.classList.remove("hidden");
-      if (wasHidden) { SoundFX.disconnect(); announce(`${blocker.text} หัวหน้าห้องกดปุ่ม ${blocker.label} เพื่อเล่นต่อได้`, true); }
+      if (wasHidden && blocker) { SoundFX.disconnect(); announce(`${blocker.text} หัวหน้าห้องกดปุ่ม ${blocker.label} หรือเตะออกจากห้องเพื่อเล่นต่อได้`, true); }
+    }
+
+    // จั่วการ์ดที่ค้างในตลาดให้ครบ แล้วทิ้งการ์ดที่พักไว้ลงกองทิ้งซ้าย (ใช้ตอนข้ามตาคนออฟไลน์)
+    function finishPendingMarket(r, mp) {
+      const pend = mp.marketPending || [];
+      if (pend.length) {
+        const deck = r.deck || [], dL = r.discardLeft || [], dR = r.discardRight || [];
+        const need = Math.max(0, pend.length - (mp.marketDrawn || 0));
+        mp.hand = [...(mp.hand || []), ...drawFromDeck(deck, dL, dR, need)];
+        dL.push(...pend);
+        r.deck = deck; r.discardLeft = dL; r.discardRight = dR;
+      }
+      delete mp.marketPending; delete mp.marketDrawn;
+    }
+
+    function confirmKick(pid) {
+      const room = currentRoomData;
+      if (!room || !room.players[pid]) return;
+      const name = room.players[pid].name;
+      const ok = window.confirm(`เตะ ${name} ออกจากห้องใช่ไหม? การ์ดและสินค้าบนแผงของ ${name} จะถูกนำออกจากเกม ไม่ถูกนับคะแนน และ ${name} จะกลับเข้าห้องนี้ด้วยที่นั่งเดิมไม่ได้อีก`);
+      if (!ok) return;
+      lastActionRenderKey = "";
+      roomTx(r => kickPlayer(r, pid)).then(res => {
+        if (res) { SoundFX.leave(); announce(`เตะ ${name} ออกจากห้องแล้ว`, true); }
+        else announce(`เตะ ${name} ไม่สำเร็จ ผู้เล่นอาจกลับมาออนไลน์แล้ว`, true);
+      });
+    }
+
+    // เตะผู้เล่นที่ออฟไลน์ออกจากห้อง: เอาออกจากลำดับเล่น ตารางผู้ตรวจการ และคะแนน แล้วปรับเกมที่กำลังเล่นให้เดินต่อได้
+    function kickPlayer(r, pid) {
+      if (r.hostId !== myPlayerId || pid === myPlayerId) return;
+      const p = r.players && r.players[pid];
+      if (!p || p.online !== false) return; // เตะได้เฉพาะคนที่ออฟไลน์อยู่
+      const name = p.name;
+
+      if (r.status !== "playing") {
+        delete r.players[pid];
+        if (r.playerOrder) r.playerOrder = r.playerOrder.filter(x => x !== pid);
+        if (r.playAgain) delete r.playAgain[pid];
+        r.logs = [...(r.logs || []), `หัวหน้าห้องเตะ ${name} ออกจากห้อง` + (r.status === "finished" ? " (ไม่นับคะแนน)" : "")];
+        return r;
+      }
+
+      // การ์ดบนมือ / ที่พักไว้ในตลาด / ในถุงที่ยังไม่ตัดสิน กลับไปไว้ใต้กองกลาง ส่วนสินค้าบนแผงออกจากเกม
+      const back = [...(p.hand || []), ...(p.marketPending || []), ...((p.bag && !p.bag.resolved && p.bag.actualCards) || [])];
+      r.deck = [...shuffle(back), ...(r.deck || [])];
+
+      const wasSheriff = getSheriffIds(r).includes(pid);
+      const oldMerchants = getMerchants(r);
+      const activeId = oldMerchants[r.marketTurnIndex || 0];
+      const round = r.round || 1;
+
+      delete r.players[pid];
+      r.playerOrder = (r.playerOrder || []).filter(x => x !== pid);
+      // ตารางผู้ตรวจการ: รอบที่ผ่านไปแล้วคงไว้ รอบถัด ๆ ไปเอาชื่อออก รอบที่ว่างเปล่าตัดทิ้ง
+      r.sheriffSchedule = (r.sheriffSchedule || [])
+        .map((e, i) => i < round ? e : e.filter(x => x !== pid))
+        .filter((e, i) => i < round || e.length > 0);
+      r.totalRounds = Math.max(round, r.sheriffSchedule.length);
+      r.sheriffIds = getSheriffIds(r).filter(x => x !== pid);
+      Object.values(r.players).forEach(m => {
+        if (m && m.bag) {
+          if (m.bag.bribes) delete m.bag.bribes[pid];
+          if (m.bag.decisions) delete m.bag.decisions[pid];
+        }
+      });
+      if (r.playAgain) delete r.playAgain[pid];
+      r.logs = [...(r.logs || []), `หัวหน้าห้องเตะ ${name} ออกจากห้อง (ไม่นับคะแนน)`];
+      r.lastSoundEvent = { type: "leave", id: Date.now() };
+
+      if (r.playerOrder.length < 2) {
+        r.status = "finished"; r.finishedAt = Date.now(); r.playAgain = null;
+        r.logs.push("เหลือผู้เล่นไม่ถึง 2 คน เกมจบลง");
+        r.lastSoundEvent = { type: "win", id: Date.now() };
+        return r;
+      }
+
+      if (wasSheriff && r.sheriffIds.length === 0) {
+        // รอบนี้ไม่เหลือผู้ตรวจการ: ถุงที่ส่งแล้วผ่านเข้าเมืองทั้งหมด แล้วขึ้นรอบถัดไป
+        Object.values(r.players).forEach(m => {
+          finishPendingMarket(r, m);
+          if (m.bag && m.bag.submitted && !m.bag.resolved) {
+            (m.bag.actualCards || []).forEach(k => {
+              const key = CARD_TYPES[k].type === "legal" ? "stallLegal" : "stallContraband";
+              m[key] = [...(m[key] || []), k];
+            });
+          }
+        });
+        r.logs.push("ผู้ตรวจการรอบนี้ถูกเตะออก ถุงที่ส่งแล้วผ่านเข้าเมืองทั้งหมด และเริ่มรอบถัดไป");
+        return advanceRound(r);
+      }
+
+      if (r.phase === "market") {
+        if (isSimMarket(r)) {
+          advanceMarketTurn(r, r.logs);
+        } else {
+          const merchants = getMerchants(r);
+          if (activeId && activeId !== pid && merchants.includes(activeId)) {
+            r.marketTurnIndex = merchants.indexOf(activeId);
+          } else {
+            // คนที่ถึงตาถูกเตะ: ตาไปที่คนถัดไป (อยู่ตำแหน่งเดิมในลำดับ)
+            const idx = Math.min(r.marketTurnIndex || 0, merchants.length);
+            r.marketTurnIndex = Math.max(0, idx - 1);
+            if (idx >= merchants.length || merchants.length === 0) advanceMarketTurn(r, r.logs);
+            else { r.marketTurnIndex = idx; r.logs.push(`ถึงตาพ่อค้า ${r.players[merchants[idx]].name} ในเฟสตลาด`); }
+          }
+        }
+      } else if (r.phase === "load_declare") {
+        maybeStartInspection(r);
+      } else if (r.phase === "inspection") {
+        // ผู้ตรวจการที่เหลือตัดสินไปแล้ว → เฉลยถุงนั้นได้เลย
+        const sIds = getSheriffIds(r);
+        getMerchants(r).forEach(mid => {
+          const m = r.players[mid];
+          if (!m || !m.bag || m.bag.resolved || !m.bag.submitted) return;
+          const dec = m.bag.decisions || {};
+          if (sIds.every(sid => !!dec[sid])) resolveMerchantBag(r, mid, dec);
+        });
+      }
+      return r;
     }
 
     function applyHostAssist(r) {
@@ -2936,19 +3679,13 @@
       if (!blocker) return;
       const logs = [...(r.logs || [])];
       if (blocker.kind === "market") {
-        const pid = blocker.ids[0];
-        const mp = r.players[pid];
-        const pend = mp.marketPending || [];
-        if (pend.length) {
-          // จั่วที่ค้างให้ครบ แล้วทิ้งการ์ดที่พักไว้ลงกองทิ้งซ้าย
-          const deck = r.deck || [], dL = r.discardLeft || [], dR = r.discardRight || [];
-          const need = Math.max(0, pend.length - (mp.marketDrawn || 0));
-          mp.hand = [...(mp.hand || []), ...drawFromDeck(deck, dL, dR, need)];
-          dL.push(...pend);
-          r.deck = deck; r.discardLeft = dL; r.discardRight = dR;
-        }
-        delete mp.marketPending; delete mp.marketDrawn;
-        logs.push(`หัวหน้าห้องข้ามตาตลาดของ ${mp.name} (ออฟไลน์)`);
+        // โหมดผลัดกันมีได้ทีละคน โหมดพร้อมกันอาจข้ามหลายคนพร้อมกัน
+        blocker.ids.forEach(pid => {
+          const mp = r.players[pid];
+          finishPendingMarket(r, mp);
+          if (isSimMarket(r)) mp.marketDone = true;
+          logs.push(`หัวหน้าห้องข้ามตาตลาดของ ${mp.name} (ออฟไลน์)`);
+        });
         advanceMarketTurn(r, logs);
       } else if (blocker.kind === "bag") {
         blocker.ids.forEach(pid => {
@@ -3090,7 +3827,9 @@
         const activeId = merchants[room.marketTurnIndex || 0];
         const activeName = players[activeId] ? players[activeId].name : "-";
         phaseTitleEl.textContent = "เฟสที่ 1: ตลาดแลกเปลี่ยนการ์ด";
-        phaseDescEl.textContent = `ขณะนี้เป็นตาของพ่อค้า ${activeName} ในการเปลี่ยนการ์ดบนมือ`;
+        phaseDescEl.textContent = isSimMarket(room)
+          ? `พ่อค้าทุกคนเปลี่ยนการ์ดพร้อมกัน จั่วได้จากกองกลางเท่านั้น (เสร็จแล้ว ${marketDoneIds(room).length} จาก ${merchants.length} คน)`
+          : `ขณะนี้เป็นตาของพ่อค้า ${activeName} ในการเปลี่ยนการ์ดบนมือ`;
       } else if (room.phase === "load_declare") {
         phaseTitleEl.textContent = "เฟสที่ 2 และ 3: ใส่สินค้าลงถุงและประกาศสินค้า";
         phaseDescEl.textContent = "พ่อค้าทุกคนเลือกสินค้า 1 ถึง 5 ใบใส่ถุง และประกาศชนิดสินค้าถูกกฎหมายพร้อมกัน";
@@ -3174,18 +3913,18 @@
       const order = room.playerOrder || [];
       const sIds = getSheriffIds(room);
 
-      let html = `<table>
+      let html = `<table role="table" class="status-table">
         <caption class="sr-only">สถานะผู้เล่นทุกคน เงิน สินค้าบนแผง และสถานะในรอบนี้</caption>
-        <thead>
-          <tr>
-            <th scope="col">ผู้เล่น</th>
-            <th scope="col">บทบาท</th>
-            <th scope="col">เงิน</th>
-            <th scope="col">สินค้าบนแผง</th>
-            <th scope="col">สถานะรอบนี้</th>
+        <thead role="rowgroup">
+          <tr role="row">
+            <th scope="col" role="columnheader">ผู้เล่น</th>
+            <th scope="col" role="columnheader">บทบาท</th>
+            <th scope="col" role="columnheader">เงิน</th>
+            <th scope="col" role="columnheader">สินค้าบนแผง</th>
+            <th scope="col" role="columnheader">สถานะรอบนี้</th>
           </tr>
         </thead>
-        <tbody>`;
+        <tbody role="rowgroup">`;
 
       order.forEach(pid => {
         const p = room.players[pid];
@@ -3206,7 +3945,8 @@
           const merchants = getMerchants(room);
           const mIdx = merchants.indexOf(pid);
           const curIdx = room.marketTurnIndex || 0;
-          if (mIdx < curIdx) roundStatus = "เสร็จสิ้นเฟสตลาดแล้ว";
+          if (isSimMarket(room)) roundStatus = p.marketDone ? "เสร็จสิ้นเฟสตลาดแล้ว" : "กำลังเลือกการ์ดในตลาด";
+          else if (mIdx < curIdx) roundStatus = "เสร็จสิ้นเฟสตลาดแล้ว";
           else if (mIdx === curIdx) roundStatus = "กำลังเลือกการ์ดในตลาด";
           else roundStatus = "รอคิวตลาด";
         } else if (room.phase === "load_declare") {
@@ -3223,12 +3963,13 @@
           }
         }
 
-        html += `<tr>
-          <th scope="row">${esc(p.name)}${pid === myPlayerId ? " (คุณ)" : ""}${p.online === false ? " (ออฟไลน์)" : ""}</th>
-          <td>${isSheriff ? "ผู้ตรวจการ" : "พ่อค้า"}</td>
-          <td>${p.gold} เหรียญ</td>
-          <td>${stallSummary}</td>
-          <td>${roundStatus}</td>
+        // role + data-label: เมื่อพื้นที่แคบ ตารางจะแสดงเป็นการ์ดต่อผู้เล่น โดยโปรแกรมอ่านจอภาพยังอ่านเป็นตารางได้
+        html += `<tr role="row">
+          <th scope="row" role="rowheader">${esc(p.name)}${pid === myPlayerId ? " (คุณ)" : ""}${p.online === false ? " (ออฟไลน์)" : ""}</th>
+          <td role="cell" data-label="บทบาท">${isSheriff ? "ผู้ตรวจการ" : "พ่อค้า"}</td>
+          <td role="cell" data-label="เงิน">${p.gold} เหรียญ</td>
+          <td role="cell" data-label="สินค้าบนแผง">${stallSummary}</td>
+          <td role="cell" data-label="สถานะรอบนี้">${roundStatus}</td>
         </tr>`;
       });
 
@@ -3271,10 +4012,19 @@
       let myTurnSig = "";
 
       if (room.phase === "market") {
-        const activeId = merchants[room.marketTurnIndex || 0];
-        const isMyTurn = (activeId === myPlayerId);
-        if (isMyTurn) myTurnSig = `${room.round}_${room.marketTurnIndex || 0}`;
+        const isMyTurn = canActInMarket(room, myPlayerId);
+        if (isMyTurn) myTurnSig = isSimMarket(room) ? `${room.round}_sim` : `${room.round}_${room.marketTurnIndex || 0}`;
         renderKey += `_${room.marketTurnIndex}_${isMyTurn}_${localMarketState.step}_${localMarketState.drawNeeded}`;
+        // โหมดพร้อมกัน: คนที่รออยู่เห็นจำนวนคนที่เสร็จแล้วอัปเดตตาม (คนที่ยังเลือกการ์ดอยู่ไม่ต้องวาดใหม่ กันที่ติ๊กไว้หาย)
+        if (isSimMarket(room) && !isMyTurn) renderKey += `_done${marketDoneIds(room).length}`;
+        if (isSimMarket(room) && isMyTurn) {
+          renderKey += `_sw${(me && me.marketSwaps) || 0}`;
+          // ขั้นจั่ว: ใบบนสุดของกองทิ้งเปลี่ยนได้ตลอดเพราะคนอื่นหยิบ/ทิ้ง ต้องอัปเดตปุ่มให้ตรง
+          if (localMarketState.step === "draw") {
+            const dl = room.discardLeft || [], dr = room.discardRight || [];
+            renderKey += `_t${dl.length}${dl[dl.length - 1] || ""}_${dr.length}${dr[dr.length - 1] || ""}`;
+          }
+        }
       } else if (room.phase === "load_declare") {
         const mySubmitted = !!(me && me.bag && me.bag.submitted);
         const submittedCount = merchants.filter(pid => players[pid]?.bag?.submitted).length;
@@ -3320,7 +4070,9 @@
 
       if (myTurnStarted) {
         SoundFX.yourTurn();
-        announce("ถึงตาคุณในเฟสตลาดแล้ว เลือกการ์ดที่จะเปลี่ยน หรือกดผ่านตา", true);
+        announce(isSimMarket(room)
+          ? "เฟสตลาดเริ่มแล้ว ทุกคนเปลี่ยนการ์ดพร้อมกันได้เลย เลือกการ์ดที่จะเปลี่ยน หรือกดไม่เปลี่ยนการ์ด"
+          : "ถึงตาคุณในเฟสตลาดแล้ว เลือกการ์ดที่จะเปลี่ยน หรือกดผ่านตา", true);
         document.getElementById("action-heading").focus();
       } else if (isPhaseOrTurnChanged) {
         document.getElementById("phase-title").focus();
@@ -3364,12 +4116,21 @@
     // ---------- เฟสที่ 1: ตลาด ----------
     function renderMarketAction(room, container) {
       const merchants = getMerchants(room);
-      const activeId = merchants[room.marketTurnIndex || 0];
-      const activeName = room.players[activeId]?.name || "-";
+      const sim = isSimMarket(room);
 
-      if (activeId !== myPlayerId) {
+      if (!canActInMarket(room, myPlayerId)) {
         localMarketState = { step: "select", setAsideIndices: [], setAsideCards: [], drawNeeded: 0 };
-        container.innerHTML = `<p>กำลังรอพ่อค้า <strong>${activeName}</strong> เปลี่ยนการ์ดในเฟสตลาด...</p>`;
+        if (sim) {
+          const done = marketDoneIds(room).length;
+          const waiting = merchants.filter(pid => !(room.players[pid] && room.players[pid].marketDone)).map(pid => esc(room.players[pid].name));
+          container.innerHTML = merchants.includes(myPlayerId)
+            ? `<p>คุณเปลี่ยนการ์ดเสร็จแล้ว กำลังรอพ่อค้าคนอื่น (เสร็จแล้ว ${done} จาก ${merchants.length} คน${waiting.length ? ` ยังเหลือ ${waiting.join(", ")}` : ""})</p>`
+            : `<p>พ่อค้าทุกคนกำลังเปลี่ยนการ์ดพร้อมกัน (เสร็จแล้ว ${done} จาก ${merchants.length} คน${waiting.length ? ` ยังเหลือ ${waiting.join(", ")}` : ""})</p>`;
+        } else {
+          const activeId = merchants[room.marketTurnIndex || 0];
+          const activeName = room.players[activeId]?.name || "-";
+          container.innerHTML = `<p>กำลังรอพ่อค้า <strong>${esc(activeName)}</strong> เปลี่ยนการ์ดในเฟสตลาด...</p>`;
+        }
         return;
       }
 
@@ -3384,7 +4145,11 @@
       }
 
       if (localMarketState.step === "select") {
-        let html = `<p><strong>ถึงตาคุณในเฟสตลาด!</strong> เลือกการ์ดที่ต้องการทิ้ง 0 ถึง 5 ใบ (การ์ดที่เลือกจะถูกพักไว้ก่อน ไม่ถูกจั่วซ้ำกลับมาในตานี้)</p>`;
+        const swaps = me.marketSwaps || 0;
+        let html = sim
+          ? `<p><strong>เฟสตลาด (ทุกคนเปลี่ยนพร้อมกัน)</strong> เลือกการ์ดที่ต้องการทิ้ง 1 ถึง 5 ใบ แล้วจั่วใหม่ เปลี่ยนได้หลายรอบจนพอใจ แล้วกด "เสร็จแล้ว"` +
+            (swaps ? ` (เปลี่ยนไปแล้ว ${swaps} ครั้ง)` : "") + `</p>`
+          : `<p><strong>ถึงตาคุณในเฟสตลาด!</strong> เลือกการ์ดที่ต้องการทิ้ง 0 ถึง 5 ใบ (การ์ดที่เลือกจะถูกพักไว้ก่อน ไม่ถูกจั่วซ้ำกลับมาในตานี้)</p>`;
         html += `<fieldset><legend>เลือกการ์ดที่ต้องการเปลี่ยน</legend><div class="hand-grid">`;
         hand.forEach((cardKey, idx) => {
           const c = CARD_TYPES[cardKey];
@@ -3395,13 +4160,23 @@
         });
         html += `</div></fieldset>`;
         html += `<button type="button" id="btn-market-confirm-discard">ยืนยันการทิ้งและไปจั่วการ์ดใหม่</button>`;
-        html += `<button type="button" id="btn-market-skip" class="secondary">ไม่เปลี่ยนการ์ด (ผ่านตา)</button>`;
+        html += `<button type="button" id="btn-market-skip" class="secondary">${
+          sim ? (swaps ? "เสร็จแล้ว (ไม่เปลี่ยนเพิ่ม)" : "ไม่เปลี่ยนการ์ด (เสร็จแล้ว)") : "ไม่เปลี่ยนการ์ด (ผ่านตา)"}</button>`;
         container.innerHTML = html;
 
         document.getElementById("btn-market-skip").addEventListener("click", () => finishMarketTurn());
         document.getElementById("btn-market-confirm-discard").addEventListener("click", () => {
           const checked = Array.from(document.querySelectorAll('input[name="market-discard"]:checked')).map(el => Number(el.value));
-          if (checked.length === 0) { finishMarketTurn(); return; }
+          if (checked.length === 0) {
+            if (isSimMarket(currentRoomData)) {
+              // โหมดพร้อมกัน กันกดพลาดแล้วจบตลาดทั้งที่ยังอยากเปลี่ยน
+              SoundFX.error();
+              document.getElementById("action-error").textContent = "ยังไม่ได้เลือกการ์ดที่จะเปลี่ยน ถ้าพอใจแล้วให้กดปุ่มเสร็จแล้ว";
+              return;
+            }
+            finishMarketTurn();
+            return;
+          }
           if (checked.length > 5) {
             SoundFX.error();
             document.getElementById("action-error").textContent = "สามารถเลือกทิ้งได้สูงสุด 5 ใบครับ";
@@ -3420,10 +4195,12 @@
       } else if (localMarketState.step === "draw") {
         const dLeft = room.discardLeft || [];
         const dRight = room.discardRight || [];
+        // โหมดพร้อมกัน: หยิบจากกองทิ้งได้แบบใครกดก่อนได้ก่อน (ใบบนสุดอาจเปลี่ยนได้ตลอดเพราะคนอื่นหยิบ/ทิ้งพร้อมกัน)
         const leftTop = dLeft.length > 0 ? CARD_TYPES[dLeft[dLeft.length - 1]] : null;
         const rightTop = dRight.length > 0 ? CARD_TYPES[dRight[dRight.length - 1]] : null;
 
-        let html = `<p><strong>ขั้นตอนจั่วการ์ดใหม่:</strong> ต้องจั่วเพิ่มอีก <strong>${localMarketState.drawNeeded} ใบ</strong></p>`;
+        let html = `<p><strong>ขั้นตอนจั่วการ์ดใหม่:</strong> ต้องจั่วเพิ่มอีก <strong>${localMarketState.drawNeeded} ใบ</strong>` +
+          (sim ? " (โหมดพร้อมกัน กองทิ้งใครกดก่อนได้ก่อน ใบบนสุดอาจเปลี่ยนได้ตลอด)" : "") + `</p>`;
         html += `<button type="button" id="btn-draw-deck">จั่วจากกองกลาง (ไม่เห็นหน้าการ์ด)</button>`;
         if (leftTop) html += `<button type="button" id="btn-draw-left" class="secondary">หยิบจากกองทิ้งซ้าย: ${leftTop.name} (${leftTop.typeText})</button>`;
         if (rightTop) html += `<button type="button" id="btn-draw-right" class="secondary">หยิบจากกองทิ้งขวา: ${rightTop.name} (${rightTop.typeText})</button>`;
@@ -3451,7 +4228,7 @@
       try {
         const res = await roomTx(r => {
           const mp = r.players && r.players[myPlayerId];
-          if (r.phase !== "market" || !mp || getMerchants(r)[r.marketTurnIndex || 0] !== myPlayerId) return;
+          if (!mp || !canActInMarket(r, myPlayerId)) return;
           let hand = mp.hand || [];
           let pend = mp.marketPending || [];
           const got = mp.marketDrawn || 0;
@@ -3474,12 +4251,22 @@
           r.deck = deck; r.discardLeft = dL; r.discardRight = dR;
           return r;
         });
-        if (!res) return;
+        if (!res) {
+          // กองทิ้งถูกคนอื่นหยิบไปจนหมดก่อน (โหมดพร้อมกัน ใครกดก่อนได้ก่อน)
+          if (source !== "deck") {
+            SoundFX.error();
+            announce("หยิบไม่ได้ กองทิ้งกองนั้นถูกคนอื่นหยิบไปหมดแล้ว ลองจั่วจากกองกลางหรือกองทิ้งอีกกอง", true);
+            lastActionRenderKey = "";
+            renderActionPanel(currentRoomData);
+          }
+          return;
+        }
         const m = res.players[myPlayerId];
         const left = m.marketPending.length - m.marketDrawn;
+        const gotCard = CARD_TYPES[m.hand[m.hand.length - 1]];
         localMarketState = { step: left > 0 ? "draw" : "discard", setAsideIndices: [], setAsideCards: m.marketPending, drawNeeded: left };
         SoundFX.card();
-        announce(`จั่วการ์ดแล้ว เหลือต้องจั่วอีก ${left} ใบ`, true);
+        announce(`ได้${gotCard ? gotCard.name : "การ์ด"} ${left > 0 ? `เหลือต้องจั่วอีก ${left} ใบ` : "จั่วครบแล้ว เลือกกองทิ้งสำหรับการ์ดที่พักไว้"}`, true);
         lastActionRenderKey = "";
         renderMyHand(m);
         renderActionPanel(currentRoomData);
@@ -3493,18 +4280,24 @@
         const count = localMarketState.setAsideCards.length;
         const pileText = targetPile === "left" ? "กองทิ้งซ้าย" : "กองทิ้งขวา";
         const ok = await finishMarketTurn(targetPile, `เปลี่ยนการ์ด ${count} ใบ และทิ้งลง${pileText}`);
-        if (ok) { SoundFX.card(); localMarketState = { step: "select", setAsideIndices: [], setAsideCards: [], drawNeeded: 0 }; }
+        if (ok) {
+          SoundFX.card();
+          localMarketState = { step: "select", setAsideIndices: [], setAsideCards: [], drawNeeded: 0 };
+          if (currentRoomData && isSimMarket(currentRoomData)) {
+            // โหมดพร้อมกัน: กลับไปหน้าเลือกการ์ด เปลี่ยนต่อได้อีก
+            lastActionRenderKey = "";
+            renderActionPanel(currentRoomData);
+            announce(`ทิ้งการ์ดลง${pileText}แล้ว จะเปลี่ยนการ์ดต่ออีกก็ได้ หรือกดเสร็จแล้ว`, true);
+          }
+        }
       } finally { marketBusy = false; }
     }
 
     async function finishMarketTurn(pile = null, actionDesc = "ไม่เปลี่ยนการ์ด") {
       lastActionRenderKey = "";
       const res = await roomTx(r => {
-        if (r.phase !== "market") return;
-        const merchants = getMerchants(r);
-        const idx = r.marketTurnIndex || 0;
-        const mp = r.players[myPlayerId];
-        if (!mp || merchants[idx] !== myPlayerId) return;
+        const mp = r.players && r.players[myPlayerId];
+        if (!mp || !canActInMarket(r, myPlayerId)) return;
         const pend = mp.marketPending || [];
         if (pile) {
           if (pend.length === 0 || (mp.marketDrawn || 0) < pend.length) return;
@@ -3512,6 +4305,17 @@
           r[key] = [...(r[key] || []), ...pend];
         } else if (pend.length > 0) return;
         delete mp.marketPending; delete mp.marketDrawn;
+        if (isSimMarket(r)) {
+          if (pile) {
+            // โหมดพร้อมกัน: เปลี่ยนเสร็จหนึ่งครั้ง ยังเปลี่ยนต่อได้เรื่อย ๆ จนกว่าจะกด "เสร็จแล้ว"
+            mp.marketSwaps = (mp.marketSwaps || 0) + 1;
+            r.logs = [...(r.logs || []), `พ่อค้า ${mp.name} ${actionDesc}`];
+            return r;
+          }
+          mp.marketDone = true;
+          const swaps = mp.marketSwaps || 0;
+          actionDesc = swaps ? `เปลี่ยนการ์ดเสร็จแล้ว (เปลี่ยนไป ${swaps} ครั้ง)` : "ไม่เปลี่ยนการ์ด";
+        }
         advanceMarketTurn(r, [...(r.logs || []), `พ่อค้า ${mp.name} ${actionDesc}`]);
         return r;
       });
@@ -3519,10 +4323,16 @@
     }
 
     // ส่งตาตลาดไปพ่อค้าคนถัดไป หรือเข้าเฟสใส่ถุงเมื่อครบทุกคน
+    // (โหมดพร้อมกัน: เข้าเฟสใส่ถุงเมื่อพ่อค้าทุกคนเปลี่ยนการ์ดเสร็จ)
     function advanceMarketTurn(r, logs) {
       const merchants = getMerchants(r);
       const idx = r.marketTurnIndex || 0;
-      if (idx + 1 >= merchants.length) {
+      const allDone = isSimMarket(r) ? marketDoneIds(r).length >= merchants.length : idx + 1 >= merchants.length;
+      if (isSimMarket(r) && !allDone) {
+        r.logs = logs;
+        return;
+      }
+      if (allDone) {
         r.phase = "load_declare";
         logs.push("จบเฟสตลาด! เข้าสู่เฟสใส่สินค้าลงถุงและประกาศสินค้า พ่อค้าทุกคนเลือกสินค้าได้เลย");
         r.lastSoundEvent = { type: "phaseLoad", id: Date.now() };
@@ -4133,6 +4943,7 @@
           if (need > 0) hand.push(...drawFromDeck(deck, dLeft, dRight, need));
           p.hand = hand;
           p.bag = { submitted: false, resolved: false, actualCards: [], declaredGood: "", declaredCount: 0, bribes: {}, decisions: {}, resultText: "" };
+          delete p.marketDone; delete p.marketSwaps; // รอบใหม่ เปลี่ยนการ์ดในตลาดได้อีกครั้ง
         });
         const nextRound = r.round + 1;
         const nextSheriffs = (r.sheriffSchedule || [])[nextRound - 1] || [order[(nextRound - 1) % order.length]];
@@ -4274,9 +5085,12 @@
       const readyBtn = document.getElementById("btn-ready-again");
       readyBtn.classList.toggle("hidden", isHost);
 
+      renderKickButtons(document.getElementById("gameover-kick-list"), room);
       if (isHost) {
+        const offNames = offlinePlayerIds(room).map(pid => players[pid].name);
         textEl.textContent = `คุณเป็นหัวหน้าห้อง เลือกได้เลยว่าจะเริ่มเกมใหม่ในห้องเดิม หรือปิดห้อง — พร้อมเล่นต่อ ${readyIds.length} จาก ${active.length} คน` +
-          (readyNames.length ? ` (${readyNames.join(", ")})` : "");
+          (readyNames.length ? ` (${readyNames.join(", ")})` : "") +
+          (offNames.length ? ` | ${offNames.join(", ")} ออฟไลน์อยู่ จะรอ หรือเตะออกเพื่อให้คะแนนคิดเฉพาะคนที่ยังอยู่ก็ได้` : "");
       } else {
         const iAmReady = !!ready[myPlayerId];
         textEl.textContent = `รอหัวหน้าห้อง ${hostName} เลือกว่าจะเล่นต่อหรือปิดห้อง — พร้อมเล่นต่อ ${readyIds.length} จาก ${active.length} คน` +
@@ -4411,8 +5225,27 @@
       }
     }
 
+    // เปิดต่อจากเบราว์เซอร์ในแอป (เช่น กด "เปิดเกมในเบราว์เซอร์ของเครื่อง" จาก LINE) → กลับเข้าที่นั่งเดิมทันที
+    async function tryHandoff() {
+      const code = (pageParams.get("room") || "").trim().toUpperCase();
+      // ล้างค่า handoff ออกจากช่องที่อยู่เว็บ (กันเผลอส่งลิงก์นี้ให้คนอื่นแล้วเข้ามาแทนที่นั่งเรา)
+      const clean = new URL(location.href);
+      clean.searchParams.delete("handoff");
+      clean.searchParams.delete("openExternalBrowser");
+      try { history.replaceState({}, "", clean.toString()); } catch (e) {}
+      if (!code) return false;
+      try {
+        const room = (await db.ref("rooms/" + code).once("value")).val();
+        if (!room || !room.players || !room.players[myPlayerId]) return false;
+        enterRoom(code);
+        announce(`เปิดเกมในเบราว์เซอร์แล้ว กลับเข้าห้อง ${code} ที่นั่งเดิมให้แล้ว กดปุ่มเข้าร่วมคุยเสียงเพื่อเปิดไมค์ได้เลย`, true);
+        return true;
+      } catch (e) { return false; }
+    }
+
     prefillHome();
-    tryResumeSession();
+    if (handoffId) tryHandoff().then(ok => { if (!ok) tryResumeSession(); });
+    else tryResumeSession();
 
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => {

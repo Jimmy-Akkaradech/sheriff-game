@@ -1,4 +1,4 @@
-const CACHE_NAME = "sheriff-game-v1.11";
+const CACHE_NAME = "sheriff-game-v1.17";
 const APP_SHELL = [
   "./",
   "./index.html",
