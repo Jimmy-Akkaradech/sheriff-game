@@ -671,27 +671,57 @@
     const db = firebase.database();
 
     // ==========================================
-    // 2. ข้อมูลสินค้าไทย 12 ชนิด (รวม 384 ใบ รองรับ 12 คน)
+    // 2. ข้อมูลสินค้า 12 ชนิด (รวม 384 ใบ รองรับ 12 คน)
     // ==========================================
+    // หลักความสมดุล:
+    // - ถูกกฎหมาย: มูลค่าต่ำ (2-4) ค่าปรับ 2 เท่ากันหมด ยิ่งราคาถูกยิ่งมีการ์ดเยอะ และโบนัสราชา/ราชินีสูงกว่า (ชดเชยราคาต่ำ)
+    // - ของเถื่อน: มูลค่าสูง (6-10) ค่าปรับ 4-5 ยิ่งแพงยิ่งหายาก และไม่มีโบนัส ต้องเสี่ยงโดนยึด
+    // - ฝั่งละ 3 คู่ราคา (ถูก/กลาง/แพง) แต่ละคู่จำนวนการ์ดใกล้เคียงกัน
     const CARD_TYPES = {
-      // สินค้าถูกกฎหมาย 6 ชนิด (268 ใบ)
-      rice:      { name: "ข้าวสาร",    icon: "🍚", type: "legal",      typeText: "ถูกกฎหมาย", value: 2, penalty: 2, count: 64, king: 20, queen: 10 },
-      mango:     { name: "มะม่วง",     icon: "🥭", type: "legal",      typeText: "ถูกกฎหมาย", value: 2, penalty: 2, count: 36, king: 20, queen: 10 },
-      fishsauce: { name: "น้ำปลา",     icon: "🍾", type: "legal",      typeText: "ถูกกฎหมาย", value: 3, penalty: 2, count: 48, king: 15, queen: 10 },
-      plara:     { name: "ปลาร้า",     icon: "🏺", type: "legal",      typeText: "ถูกกฎหมาย", value: 3, penalty: 2, count: 48, king: 15, queen: 10 },
-      mackerel:  { name: "ปลาทู",      icon: "🐟", type: "legal",      typeText: "ถูกกฎหมาย", value: 4, penalty: 2, count: 40, king: 10, queen: 5  },
-      durian:    { name: "ทุเรียน",    icon: "🍈", type: "legal",      typeText: "ถูกกฎหมาย", value: 4, penalty: 2, count: 32, king: 15, queen: 10 },
+      // สินค้าถูกกฎหมาย 6 ชนิด (268 ใบ) ขอบการ์ดสีเขียว
+      apple:     { name: "แอปเปิล",   icon: "🍎", type: "legal",      typeText: "ถูกกฎหมาย", value: 2, penalty: 2, count: 58, king: 18, queen: 9 },
+      wheat:     { name: "ข้าวสาลี",   icon: "🌾", type: "legal",      typeText: "ถูกกฎหมาย", value: 2, penalty: 2, count: 50, king: 18, queen: 9 },
+      bread:     { name: "ขนมปัง",    icon: "🍞", type: "legal",      typeText: "ถูกกฎหมาย", value: 3, penalty: 2, count: 46, king: 15, queen: 8 },
+      cheese:    { name: "ชีส",       icon: "🧀", type: "legal",      typeText: "ถูกกฎหมาย", value: 3, penalty: 2, count: 44, king: 15, queen: 8 },
+      honey:     { name: "น้ำผึ้ง",    icon: "🍯", type: "legal",      typeText: "ถูกกฎหมาย", value: 4, penalty: 2, count: 38, king: 12, queen: 6 },
+      chicken:   { name: "ไก่",       icon: "🍗", type: "legal",      typeText: "ถูกกฎหมาย", value: 4, penalty: 2, count: 32, king: 12, queen: 6 },
 
-      // สินค้าเถื่อน 6 ชนิด (116 ใบ)
-      moonshine: { name: "เหล้าเถื่อน", icon: "🥃", type: "contraband", typeText: "ของเถื่อน",  value: 6, penalty: 4, count: 32 },
-      vape:      { name: "บุหรี่ไฟฟ้า", icon: "💨", type: "contraband", typeText: "ของเถื่อน",  value: 7, penalty: 4, count: 28 },
-      sextoy:    { name: "เซ็กซ์ทอย",   icon: "🔞", type: "contraband", typeText: "ของเถื่อน",  value: 7, penalty: 4, count: 20 },
-      cannabis:  { name: "กัญชา",      icon: "🌿", type: "contraband", typeText: "ของเถื่อน",  value: 8, penalty: 4, count: 16 },
-      gun:       { name: "อาวุธปืน",    icon: "🔫", type: "contraband", typeText: "ของเถื่อน",  value: 9, penalty: 4, count: 12 },
-      heroin:    { name: "เฮโรอีน",    icon: "💉", type: "contraband", typeText: "ของเถื่อน",  value: 10, penalty: 5, count: 8  }
+      // สินค้าเถื่อน 6 ชนิด (116 ใบ) ขอบการ์ดสีแดง
+      pepper:    { name: "พริกไทย",   icon: "🌶️", type: "contraband", typeText: "ของเถื่อน",  value: 6, penalty: 4, count: 30 },
+      mead:      { name: "เหล้าหมัก",  icon: "🍺", type: "contraband", typeText: "ของเถื่อน",  value: 7, penalty: 4, count: 26 },
+      tobacco:   { name: "ยาสูบ",     icon: "🚬", type: "contraband", typeText: "ของเถื่อน",  value: 7, penalty: 4, count: 20 },
+      knife:     { name: "มีด",       icon: "🔪", type: "contraband", typeText: "ของเถื่อน",  value: 8, penalty: 4, count: 18 },
+      gunpowder: { name: "ดินปืน",    icon: "🧨", type: "contraband", typeText: "ของเถื่อน",  value: 9, penalty: 5, count: 12 },
+      crossbow:  { name: "หน้าไม้",    icon: "🏹", type: "contraband", typeText: "ของเถื่อน",  value: 10, penalty: 5, count: 10 }
     };
 
-    const LEGAL_KEYS = ["rice", "mango", "fishsauce", "plara", "mackerel", "durian"];
+    const LEGAL_KEYS = Object.keys(CARD_TYPES).filter(k => CARD_TYPES[k].type === "legal");
+
+    // แปลงการ์ดชุดเก่าในห้องที่เล่นค้างอยู่ตอนอัปเดตเกม ให้เป็นสินค้าชุดใหม่ที่มีราคา/ประเภทใกล้เคียงกัน
+    const LEGACY_CARD_MAP = {
+      rice: "apple", mango: "wheat", fishsauce: "bread", plara: "cheese", mackerel: "honey", durian: "chicken",
+      moonshine: "pepper", vape: "mead", sextoy: "tobacco", cannabis: "knife", gun: "gunpowder", heroin: "crossbow"
+    };
+    // เดินทุกช่องของข้อมูลห้อง แปลงเฉพาะค่าที่เป็นรหัสการ์ด (ในรายการการ์ด และช่องชนิดสินค้าที่ประกาศ/สัญญา)
+    function migrateLegacyCards(node) {
+      let changed = false;
+      const fix = (v) => (typeof v === "string" && LEGACY_CARD_MAP[v]) ? (changed = true, LEGACY_CARD_MAP[v]) : v;
+      (function walk(x) {
+        if (Array.isArray(x)) {
+          for (let i = 0; i < x.length; i++) {
+            if (typeof x[i] === "string") x[i] = fix(x[i]);
+            else if (x[i] && typeof x[i] === "object") walk(x[i]);
+          }
+        } else if (x && typeof x === "object") {
+          Object.keys(x).forEach(k => {
+            if (k === "logs") return; // บันทึกเหตุการณ์เป็นข้อความ ไม่ต้องแปลง
+            if (k === "declaredGood" || k === "bagGood") x[k] = fix(x[k]);
+            else if (x[k] && typeof x[k] === "object") walk(x[k]);
+          });
+        }
+      })(node);
+      return changed;
+    }
     const ALL_CARD_KEYS = Object.keys(CARD_TYPES);
     const MAX_PLAYERS = 12;
     // ===== ตั้งค่า TURN server =====
@@ -2718,6 +2748,11 @@
         if (!room) {
           leaveRoom({ skipDb: true, forget: true, urgent: true, message: "ห้องนี้ถูกปิดแล้ว" });
           return;
+        }
+
+        // ห้องที่เล่นค้างจากเวอร์ชันก่อนยังใช้การ์ดชุดเก่า: แปลงในเครื่องทันที แล้วบันทึกกลับเซิร์ฟเวอร์ครั้งเดียว
+        if (migrateLegacyCards(room)) {
+          db.ref("rooms/" + code).transaction(r => (r && migrateLegacyCards(r)) ? r : undefined, undefined, false).catch(() => {});
         }
 
         // กรองข้อมูลผู้เล่นที่ไม่สมบูรณ์ออก (กันข้อมูลตกค้างทำให้เกมรวน)
