@@ -507,6 +507,7 @@
         <ul>
           <li>ถ้าหลุดหรือเผลอปิดแอป ให้กลับมาใส่รหัสห้องเดิมและชื่อเดิม แล้วจะได้ที่นั่งเดิมคืน</li>
           <li>ถ้ามีผู้เล่นออฟไลน์จนเกมเดินต่อไม่ได้ หัวหน้าห้องจะมีปุ่มข้ามตาหรือตัดสินแทน ถ้าหัวหน้าห้องหลุดนานเกิน 20 วินาที คนที่เข้าห้องก่อนสุดจะเป็นหัวหน้าห้องแทน</li>
+          <li>เมื่อจบเกม หัวหน้าห้องเลือกได้ว่าจะเริ่มเกมใหม่ในห้องเดิมหรือปิดห้อง ผู้เล่นคนอื่นกด "อยากเล่นอีกรอบ" เพื่อบอกหัวหน้าห้องได้ ถ้าไม่มีใครกดอะไรนาน 15 นาที ห้องจะปิดเอง</li>
           <li>เข้าห้องกลางเกมได้ จะได้เล่นเป็นพ่อค้าตั้งแต่เฟสตลาดของรอบถัดไป (หรือรอบนี้เลยถ้ายังอยู่ในเฟสตลาด)</li>
           <li><strong>Alt + M</strong> เปิด/ปิดไมค์ขณะคุยเสียง, <strong>Alt + B</strong> เปิด/ปิดดนตรีพื้นหลัง</li>
           <li>ถ้าใช้โปรแกรมอ่านจอภาพ แนะนำให้ใส่หูฟัง และปรับดนตรีพื้นหลังให้เบาลงหรือปิดได้ที่แถบตั้งค่าเสียงด้านบน</li>
@@ -638,12 +639,23 @@
     <section id="view-gameover" class="card-panel hidden" aria-labelledby="heading-gameover">
       <h2 id="heading-gameover" tabindex="-1">จบเกม! สรุปคะแนนและผู้ชนะ</h2>
       <p id="winner-banner" style="font-size: 1.2rem; font-weight: 700;"></p>
+
+      <!-- จะทำอะไรต่อหลังจบเกม: หัวหน้าห้องเลือกเริ่มใหม่/ปิดห้อง ผู้เล่นอื่นกดบอกว่าพร้อมเล่นต่อ -->
+      <section id="gameover-next" class="phase-banner" aria-labelledby="gameover-next-heading">
+        <h3 id="gameover-next-heading" tabindex="-1">จะทำอะไรต่อ?</h3>
+        <p id="gameover-next-text"></p>
+        <div id="gameover-host-actions" class="hidden">
+          <button type="button" id="btn-play-again" class="success">เริ่มเกมใหม่ในห้องเดิม</button>
+          <button type="button" class="danger btn-close-room hidden">ปิดห้อง</button>
+        </div>
+        <button type="button" id="btn-ready-again" class="hidden" aria-pressed="false">อยากเล่นอีกรอบ</button>
+        <p id="gameover-idle-text" style="margin: 6px 0 0; color: var(--muted);"></p>
+      </section>
+
       <div id="bonus-summary"></div>
       <div id="scoreboard-container" class="table-wrap"></div>
       <div style="margin-top: 20px;">
-        <button type="button" id="btn-play-again" class="hidden">เริ่มเกมใหม่ในห้องเดิม</button>
-        <button type="button" id="btn-back-home" class="secondary">กลับหน้าแรก</button>
-        <button type="button" class="danger btn-close-room hidden">ปิดห้อง</button>
+        <button type="button" id="btn-back-home" class="secondary">ออกจากห้องนี้</button>
       </div>
     </section>
   </main>
@@ -2712,6 +2724,8 @@
       const logs = [`เกมเริ่มต้นแล้ว (${modeText})! เล่นทั้งหมด ${sheriffSchedule.length} รอบ ผู้ตรวจการรอบที่ 1 คือ ${sheriffNames} เริ่มเฟสตลาด`];
 
       return Object.assign(room, {
+        finishedAt: null,
+        playAgain: null,
         status: "playing",
         round: 1,
         totalRounds: sheriffSchedule.length,
@@ -4104,6 +4118,8 @@
         if (r.round >= r.totalRounds) {
           logs.push("เล่นครบทุกรอบแล้ว! กำลังสรุปคะแนนสุดท้าย");
           r.status = "finished"; r.logs = logs;
+          r.finishedAt = Date.now();   // ใช้นับเวลาปิดห้องอัตโนมัติเมื่อไม่มีใครเลือกต่อ
+          r.playAgain = null;
           r.lastSoundEvent = { type: "win", id: Date.now() };
           return r;
         }
@@ -4226,10 +4242,105 @@
       tableHtml += `</tbody></table>`;
       document.getElementById("scoreboard-container").innerHTML = tableHtml;
 
-      const isHost = (room.hostId === myPlayerId);
-      document.getElementById("btn-play-again").classList.toggle("hidden", !isHost);
       if (firstShow) announce(`จบเกมแล้ว! ผู้ชนะคือ ${winner.name} ด้วยคะแนนรวม ${winner.totalScore} คะแนน`, true);
+      renderGameOverNext(room, firstShow);
     }
+
+    // ---------- หลังจบเกม: จะทำอะไรต่อ ----------
+    const GAMEOVER_IDLE_MS = 15 * 60 * 1000;   // ไม่มีใครกดอะไรนาน 15 นาที ห้องปิดเอง
+    let prevReadyIds = null;
+    let gameoverIdleTimer = null;
+
+    function activePlayerIds(room) {
+      return Object.keys(room.players || {}).filter(pid => {
+        const p = room.players[pid];
+        return p && !p.left && p.online !== false;
+      });
+    }
+
+    function renderGameOverNext(room, firstShow) {
+      if (firstShow) prevReadyIds = null; // เข้าหน้าจบเกมรอบใหม่ เริ่มนับคนพร้อมใหม่
+      const isHost = room.hostId === myPlayerId;
+      const players = room.players || {};
+      const hostName = (players[room.hostId] && players[room.hostId].name) || "หัวหน้าห้อง";
+      const ready = room.playAgain || {};
+      const active = activePlayerIds(room);
+      // หัวหน้าห้องนับว่าพร้อมเสมอ (เป็นคนกดเริ่ม)
+      const readyIds = active.filter(pid => ready[pid] || pid === room.hostId);
+      const readyNames = readyIds.filter(pid => pid !== room.hostId).map(pid => players[pid].name);
+      const textEl = document.getElementById("gameover-next-text");
+
+      document.getElementById("gameover-host-actions").classList.toggle("hidden", !isHost);
+      const readyBtn = document.getElementById("btn-ready-again");
+      readyBtn.classList.toggle("hidden", isHost);
+
+      if (isHost) {
+        textEl.textContent = `คุณเป็นหัวหน้าห้อง เลือกได้เลยว่าจะเริ่มเกมใหม่ในห้องเดิม หรือปิดห้อง — พร้อมเล่นต่อ ${readyIds.length} จาก ${active.length} คน` +
+          (readyNames.length ? ` (${readyNames.join(", ")})` : "");
+      } else {
+        const iAmReady = !!ready[myPlayerId];
+        textEl.textContent = `รอหัวหน้าห้อง ${hostName} เลือกว่าจะเล่นต่อหรือปิดห้อง — พร้อมเล่นต่อ ${readyIds.length} จาก ${active.length} คน` +
+          (iAmReady ? " (รวมคุณแล้ว)" : "");
+        readyBtn.textContent = iAmReady ? "พร้อมเล่นอีกรอบแล้ว (กดเพื่อยกเลิก)" : "อยากเล่นอีกรอบ";
+        readyBtn.setAttribute("aria-pressed", String(iAmReady));
+        readyBtn.className = iAmReady ? "success" : "";
+      }
+
+      // แจ้งหัวหน้าห้องเมื่อมีคนกดพร้อมเล่นต่อเพิ่ม
+      if (isHost && prevReadyIds) {
+        const added = readyIds.filter(pid => !prevReadyIds.includes(pid));
+        if (added.length) {
+          SoundFX.coin();
+          announce(`${added.map(pid => players[pid].name).join(", ")} พร้อมเล่นต่อแล้ว (${readyIds.length} จาก ${active.length} คน)`);
+        }
+      }
+      prevReadyIds = readyIds;
+
+      updateGameoverIdleText(room);
+      if (firstShow) document.getElementById("gameover-next-heading").focus();
+    }
+
+    function updateGameoverIdleText(room) {
+      const el = document.getElementById("gameover-idle-text");
+      if (!room || room.status !== "finished" || !room.finishedAt) { el.textContent = ""; return; }
+      const left = Math.max(0, Math.ceil((room.finishedAt + GAMEOVER_IDLE_MS - Date.now()) / 60000));
+      el.textContent = `ถ้าไม่มีใครกดอะไร ห้องจะปิดเองในอีกประมาณ ${left} นาที`;
+    }
+
+    // ตรวจทุก 30 วินาที: อัปเดตข้อความนับถอยหลัง และหัวหน้าห้องเป็นคนปิดห้องเมื่อครบเวลา
+    function tickGameoverIdle() {
+      const room = currentRoomData;
+      if (!room || room.status !== "finished") return;
+      updateGameoverIdleText(room);
+      if (room.hostId !== myPlayerId || !room.finishedAt) return;
+      if (Date.now() - room.finishedAt < GAMEOVER_IDLE_MS) return;
+      const code = currentRoomCode;
+      db.ref("rooms/" + code).transaction(r => {
+        if (!r || r.status !== "finished" || !r.finishedAt) return; // มีคนเริ่มเกมใหม่แล้ว ไม่ต้องปิด
+        if (Date.now() - r.finishedAt < GAMEOVER_IDLE_MS) return;
+        return null;
+      }, undefined, false).then(res => {
+        if (res.committed && !res.snapshot.exists()) db.ref("voice/" + code).remove().catch(() => {});
+      }).catch(() => {});
+    }
+    gameoverIdleTimer = setInterval(tickGameoverIdle, 30000);
+
+    // ผู้เล่นกด/ยกเลิก "อยากเล่นอีกรอบ" (นับเป็นการขยับ ต่อเวลาปิดห้องอัตโนมัติด้วย)
+    document.getElementById("btn-ready-again").addEventListener("click", async () => {
+      if (!currentRoomData || currentRoomData.status !== "finished") return;
+      const now = !(currentRoomData.playAgain && currentRoomData.playAgain[myPlayerId]);
+      const res = await roomTx(r => {
+        if (r.status !== "finished" || !r.players || !r.players[myPlayerId]) return;
+        r.playAgain = Object.assign({}, r.playAgain || {});
+        if (now) r.playAgain[myPlayerId] = true; else delete r.playAgain[myPlayerId];
+        r.finishedAt = Date.now();
+        return r;
+      });
+      if (res) {
+        if (now) SoundFX.coin();
+        announce(now ? "แจ้งหัวหน้าห้องแล้วว่าคุณอยากเล่นอีกรอบ" : "ยกเลิกแล้ว");
+      }
+    });
 
     // ==========================================
     // 11. ตรวจสอบลิงก์เชิญเพื่อนและตั้งค่า PWA
