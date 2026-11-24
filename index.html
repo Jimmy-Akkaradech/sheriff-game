@@ -355,7 +355,7 @@
     .audio-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
     .audio-row label { display: inline; margin: 0; }
     .audio-row button { margin: 0; }
-    .audio-row input[type="range"] { width: 140px; accent-color: var(--primary); }
+    .audio-row input[type="range"] { width: 160px; height: 28px; margin: 0; accent-color: var(--primary); cursor: pointer; }
 
     .rules-guide h3 { margin-top: 18px; }
     .rules-guide ol, .rules-guide ul { padding-left: 22px; }
@@ -754,6 +754,8 @@
     let lastPlayerCount = 0;
     let lastLogCount = 0;
     let lastActionRenderKey = "";
+    let lastPhaseSig = "";        // รอบ_เฟส ล่าสุดที่วาดแผงคำสั่ง (ใช้ตัดสินว่าจะย้ายโฟกัสไปหัวข้อเฟสหรือไม่)
+    let lastMyTurnSig = "";       // ตาตลาดของเราที่แจ้งเตือนไปแล้ว
     let lastSoundId = 0;
     let lastStatus = null;
     let marketBusy = false;
@@ -1289,6 +1291,14 @@
         this.guitar(st(0, 2), { at: 1.2, dur: 2.0, gain: 0.09 });
         this.cock({ at: 2.0 });
       },
+      // ถึงตาคุณ: เคาะเคาน์เตอร์บาร์ 2 ครั้ง แล้วผิวปากเรียกเสียงขึ้น
+      yourTurn() {
+        if (!this.ready()) return;
+        this.wood(300, { gain: 0.4, wet: 0.15 });
+        this.wood(300, { at: 0.14, gain: 0.4, wet: 0.15 });
+        this.whistle(st(7, 4), { at: 0.32, dur: 0.18, gain: 0.08 });
+        this.whistle(st(12, 4), { at: 0.5, dur: 0.45, gain: 0.08 });
+      },
       // จั่ว/ทิ้งการ์ด: สับไพ่บนโต๊ะซาลูน
       card() {
         if (!this.ready()) return;
@@ -1620,6 +1630,7 @@
       ["startGame", "เริ่มเกม / เริ่มรอบใหม่ เข้าเฟสตลาด (แส้ฟาด กีตาร์ทว๊าง ทรัมเป็ต)"],
       ["phaseLoad", "เข้าเฟสใส่สินค้าลงถุง (งูหางกระดิ่ง ฮาร์มอนิก้า)"],
       ["phaseInspection", "เข้าเฟสตรวจค้น ดวลเที่ยงวัน (ระฆังโบสถ์ ผิวปาก ง้างนกปืน)"],
+      ["yourTurn", "ถึงตาคุณในเฟสตลาด (เคาะเคาน์เตอร์และผิวปากเรียก)"],
       ["card", "จั่วหรือทิ้งการ์ด / ผู้ตรวจการล็อกคำตัดสิน (สับไพ่)"],
       ["zipBag", "พ่อค้าปิดถุงสินค้า (ถุงหนังและหัวเข็มขัด)"],
       ["coin", "เสนอหรือรับสินบน (เหรียญหล่นบนเคาน์เตอร์บาร์)"],
@@ -2592,6 +2603,7 @@
       currentRoomCode = null;
       currentRoomData = null;
       lastActionRenderKey = "";
+      lastPhaseSig = ""; lastMyTurnSig = "";
       lastStatus = null;
       prevPresence = null;
       iWasInRoom = false;
@@ -2728,6 +2740,7 @@
       lastPlayerCount = 0;
       lastLogCount = 0;
       lastActionRenderKey = "";
+      lastPhaseSig = ""; lastMyTurnSig = "";
       prevPresence = null;
       iWasInRoom = false;
       logSeenCount = null;
@@ -2994,16 +3007,22 @@
       const playersObj = room.players || {};
       const playerList = Object.entries(playersObj);
       const listEl = document.getElementById("lobby-player-list");
-      listEl.innerHTML = "";
-
-      playerList.forEach(([pid, p]) => {
-        const li = document.createElement("li");
+      const lines = playerList.map(([pid, p]) => {
         const isHostText = (pid === room.hostId) ? " (หัวหน้าห้อง)" : "";
         const isMeText = (pid === myPlayerId) ? " [คุณ]" : "";
         const offlineText = (p.online === false) ? " (ออฟไลน์)" : "";
-        li.textContent = `${p.name}${isHostText}${isMeText}${offlineText}`;
-        listEl.appendChild(li);
+        return `${p.name}${isHostText}${isMeText}${offlineText}`;
       });
+      // วาดรายชื่อใหม่เฉพาะเมื่อเปลี่ยนจริง
+      if (listEl._sig !== lines.join("\n")) {
+        listEl._sig = lines.join("\n");
+        listEl.innerHTML = "";
+        lines.forEach(t => {
+          const li = document.createElement("li");
+          li.textContent = t;
+          listEl.appendChild(li);
+        });
+      }
 
       document.getElementById("player-count").textContent = playerList.length;
 
@@ -3073,14 +3092,21 @@
       renderActionPanel(room);
       renderHostAssist(room);
 
+      // บันทึกเหตุการณ์: เติมเฉพาะรายการใหม่ไว้บนสุด ไม่วาดทั้งรายการใหม่ (กันตำแหน่งอ่านของโปรแกรมอ่านจอภาพหลุด)
       const logs = room.logs || [];
       const logListEl = document.getElementById("game-log-list");
-      logListEl.innerHTML = "";
-      logs.slice().reverse().forEach(msg => {
+      const shown = logListEl._count || 0;
+      if (logs.length < shown || logListEl._first !== logs[0]) {
+        logListEl.innerHTML = "";
+        logListEl._count = 0;
+      }
+      for (let i = logListEl._count || 0; i < logs.length; i++) {
         const li = document.createElement("li");
-        li.textContent = msg;
-        logListEl.appendChild(li);
-      });
+        li.textContent = logs[i];
+        logListEl.insertBefore(li, logListEl.firstChild);
+      }
+      logListEl._count = logs.length;
+      logListEl._first = logs[0];
 
       // เมนูบันทึกเหตุการณ์พับเก็บไว้ก่อน: ที่หัวข้อจะบอกจำนวน และจำนวนที่ยังไม่ได้เปิดอ่าน
       const logOpen = document.getElementById("log-details").open;
@@ -3135,6 +3161,7 @@
       const sIds = getSheriffIds(room);
 
       let html = `<table>
+        <caption class="sr-only">สถานะผู้เล่นทุกคน เงิน สินค้าบนแผง และสถานะในรอบนี้</caption>
         <thead>
           <tr>
             <th scope="col">ผู้เล่น</th>
@@ -3183,7 +3210,7 @@
         }
 
         html += `<tr>
-          <td>${esc(p.name)}${pid === myPlayerId ? " (คุณ)" : ""}${p.online === false ? " (ออฟไลน์)" : ""}</td>
+          <th scope="row">${esc(p.name)}${pid === myPlayerId ? " (คุณ)" : ""}${p.online === false ? " (ออฟไลน์)" : ""}</th>
           <td>${isSheriff ? "ผู้ตรวจการ" : "พ่อค้า"}</td>
           <td>${p.gold} เหรียญ</td>
           <td>${stallSummary}</td>
@@ -3192,6 +3219,9 @@
       });
 
       html += `</tbody></table>`;
+      // วาดใหม่เฉพาะเมื่อข้อมูลในตารางเปลี่ยนจริง
+      if (container._html === html) return;
+      container._html = html;
       container.innerHTML = html;
     }
 
@@ -3199,19 +3229,18 @@
       const hand = (me && me.hand) ? me.hand : [];
       document.getElementById("hand-count").textContent = hand.length;
       const handListEl = document.getElementById("my-hand-list");
-      handListEl.innerHTML = "";
-
-      hand.forEach((cardKey, index) => {
+      const html = hand.map((cardKey, index) => {
         const card = CARD_TYPES[cardKey];
-        const li = document.createElement("li");
-        li.className = `game-card ${card.type}`;
-        li.innerHTML = `
+        return `<li class="game-card ${card.type}">
           <strong>${iconSpan(cardKey)}ใบที่ ${index + 1}: ${card.name}</strong><br>
           ประเภท: ${card.typeText}<br>
           มูลค่า: ${card.value} เหรียญ | ค่าปรับ: ${card.penalty} เหรียญ
-        `;
-        handListEl.appendChild(li);
-      });
+        </li>`;
+      }).join("");
+      // วาดใหม่เฉพาะเมื่อการ์ดบนมือเปลี่ยนจริง
+      if (handListEl._html === html) return;
+      handListEl._html = html;
+      handListEl.innerHTML = html;
     }
 
     // ==========================================
@@ -3225,10 +3254,12 @@
       const merchants = getMerchants(room);
 
       let renderKey = `${room.round}_${room.phase}_${isSheriff}`;
+      let myTurnSig = "";
 
       if (room.phase === "market") {
         const activeId = merchants[room.marketTurnIndex || 0];
         const isMyTurn = (activeId === myPlayerId);
+        if (isMyTurn) myTurnSig = `${room.round}_${room.marketTurnIndex || 0}`;
         renderKey += `_${room.marketTurnIndex}_${isMyTurn}_${localMarketState.step}_${localMarketState.drawNeeded}`;
       } else if (room.phase === "load_declare") {
         const mySubmitted = !!(me && me.bag && me.bag.submitted);
@@ -3252,8 +3283,15 @@
         }
       }
 
+      // ถึงตาเราในเฟสตลาด (เพิ่งเริ่มตา): ส่งเสียง ประกาศด่วน และพาโฟกัสไปที่คำสั่ง
+      const myTurnStarted = !!myTurnSig && myTurnSig !== lastMyTurnSig;
+      lastMyTurnSig = myTurnSig;
+
       if (renderKey === lastActionRenderKey) return;
-      const isPhaseOrTurnChanged = lastActionRenderKey.split("_")[1] !== room.phase || lastActionRenderKey.split("_")[0] !== String(room.round);
+      // เทียบรอบ/เฟสกับที่จำไว้แยกต่างหาก (เดิมเทียบจาก renderKey ที่ถูกล้างบ่อย ทำให้โฟกัสเด้งขึ้นบนทุกครั้งที่จั่วการ์ด)
+      const phaseSig = `${room.round}_${room.phase}`;
+      const isPhaseOrTurnChanged = phaseSig !== lastPhaseSig;
+      lastPhaseSig = phaseSig;
       lastActionRenderKey = renderKey;
 
       const contentEl = document.getElementById("action-content");
@@ -3266,7 +3304,11 @@
       else if (room.phase === "load_declare") renderLoadDeclareAction(room, contentEl);
       else if (room.phase === "inspection") renderInspectionAction(room, contentEl);
 
-      if (isPhaseOrTurnChanged) {
+      if (myTurnStarted) {
+        SoundFX.yourTurn();
+        announce("ถึงตาคุณในเฟสตลาดแล้ว เลือกการ์ดที่จะเปลี่ยน หรือกดผ่านตา", true);
+        document.getElementById("action-heading").focus();
+      } else if (isPhaseOrTurnChanged) {
         document.getElementById("phase-title").focus();
       } else if (keep) {
         restoreActionState(contentEl, keep);
